@@ -130,18 +130,8 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                                     </div>
                                 </div>
                             ) : user.kycStatus === 'approved' ? (
-                                <div className="bg-green-500/10 border border-green-500/20 rounded-[2rem] p-6">
-                                    <div className="flex items-center gap-4 mb-4">
-                                        <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center text-green-500">
-                                            <span className="material-symbols-outlined">check_circle</span>
-                                        </div>
-                                        <div>
-                                            <h3 className="text-white font-bold text-lg">Verified for Rentals</h3>
-                                            <p className="text-brand-muted text-sm">You are eligible to rent products awaiting setup.</p>
-                                        </div>
-                                    </div>
-
-                                    {(!user.addresses?.length || !user.rentalPreferences?.isOnboardingComplete) && (
+                                (!user.addresses?.length || !user.rentalPreferences?.isOnboardingComplete) ? (
+                                    <div className="bg-brand-card border border-brand-border rounded-[2rem] p-6 mb-6">
                                         <div className="bg-black/20 rounded-xl p-4 border border-white/5">
                                             <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Setup Required</p>
                                             <div className="flex flex-col gap-3">
@@ -164,8 +154,8 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                                                 </div>
                                             </div>
                                         </div>
-                                    )}
-                                </div>
+                                    </div>
+                                ) : null
                             ) : user.kycStatus === 'rejected' ? (
                                 <div className="bg-red-500/10 border border-red-500/20 rounded-[2rem] p-6 flex flex-col md:flex-row items-center justify-between gap-4">
                                     <div className="flex items-center gap-4">
