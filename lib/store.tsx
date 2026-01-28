@@ -287,10 +287,17 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   };
 
   const resetPassword = async (email: string) => {
+    console.log("Attempting to reset password for:", email);
     try {
       await sendPasswordResetEmail(auth, email);
+      console.log("Password reset email sent successfully.");
       return { success: true, message: 'Password reset link sent to your email' };
     } catch (err: any) {
+      console.error("Error sending password reset email:", err);
+      // Give more detailed error messages
+      if (err.code === 'auth/user-not-found') {
+        return { success: false, message: 'No account found with this email.' };
+      }
       return { success: false, message: err.message };
     }
   };
