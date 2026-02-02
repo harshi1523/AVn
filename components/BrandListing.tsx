@@ -76,24 +76,24 @@ export default function BrandListing({ brand, onProductClick, onBack }: BrandLis
             <div className="relative h-[400px] md:h-[500px] overflow-hidden">
                 <picture className="absolute inset-0 w-full h-full">
                     {/* Mobile: 640px */}
-                    <source 
-                        media="(max-width: 640px)" 
-                        srcSet={getUnsplashResponsiveUrl(metadata.banner, 640, 75)} 
+                    <source
+                        media="(max-width: 640px)"
+                        srcSet={getUnsplashResponsiveUrl(metadata.banner, 640, 75)}
                     />
                     {/* Tablet: 1024px */}
-                    <source 
-                        media="(max-width: 1024px)" 
-                        srcSet={getUnsplashResponsiveUrl(metadata.banner, 1024, 80)} 
+                    <source
+                        media="(max-width: 1024px)"
+                        srcSet={getUnsplashResponsiveUrl(metadata.banner, 1024, 80)}
                     />
                     {/* Desktop Default: 1920px */}
-                    <img 
-                        src={getUnsplashResponsiveUrl(metadata.banner, 1920, 85)} 
-                        alt={`${brand} Brand Banner`} 
+                    <img
+                        src={getUnsplashResponsiveUrl(metadata.banner, 1920, 85)}
+                        alt={`${brand} Brand Banner`}
                         className="w-full h-full object-cover filter brightness-[0.3]"
                         loading="eager"
                     />
                 </picture>
-                
+
                 <div className="absolute inset-0 bg-gradient-to-t from-brand-page via-black/40 to-transparent"></div>
                 <div className="absolute inset-0 max-w-7xl mx-auto px-6 flex flex-col justify-center items-start">
                     <button onClick={onBack} className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 hover:text-white mb-10 flex items-center gap-2 group">
@@ -129,30 +129,29 @@ export default function BrandListing({ brand, onProductClick, onBack }: BrandLis
                         displayProducts.map(product => {
                             const isInWishlist = wishlist.includes(product.id);
                             const isRent = product.type === 'rent';
-                            
+
                             // Generate responsive srcset for product images if they are Unsplash
-                            const productImgSrcSet = product.image.includes('unsplash.com') 
+                            const productImgSrcSet = product.image.includes('unsplash.com')
                                 ? `${getUnsplashResponsiveUrl(product.image, 300)} 300w, ${getUnsplashResponsiveUrl(product.image, 600)} 600w, ${getUnsplashResponsiveUrl(product.image, 900)} 900w`
                                 : undefined;
 
                             return (
-                                <div 
+                                <div
                                     key={product.id}
                                     onClick={() => onProductClick(product.id)}
                                     className="group relative bg-brand-card border border-white/5 rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden cursor-pointer transition-all duration-500 hover:border-brand-primary/40 hover:-translate-y-2 flex flex-col h-full"
                                 >
                                     <div className="absolute top-4 left-4 md:top-6 md:left-6 z-30">
-                                      <div className={`px-2.5 md:px-4 py-1 md:py-1.5 rounded-full text-[7px] md:text-[8px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] shadow-lg border ${
-                                        isRent 
-                                        ? 'bg-brand-primary text-white border-brand-primary' 
-                                        : 'bg-white text-black border-white'
-                                      }`}>
-                                        {isRent ? 'RENT' : 'BUY'}
-                                      </div>
+                                        <div className={`px-2.5 md:px-4 py-1 md:py-1.5 rounded-full text-[7px] md:text-[8px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] shadow-lg border ${isRent
+                                                ? 'bg-brand-primary text-white border-brand-primary'
+                                                : 'bg-white text-black border-white'
+                                            }`}>
+                                            {isRent ? 'RENT' : 'BUY'}
+                                        </div>
                                     </div>
 
                                     <div className="absolute top-4 right-4 md:top-6 md:right-6 z-30 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button 
+                                        <button
                                             onClick={(e) => { e.stopPropagation(); toggleWishlist(product.id); }}
                                             className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center backdrop-blur-3xl transition-all active:scale-125 ${isInWishlist ? 'bg-red-500 text-white shadow-glow' : 'bg-black/60 text-white/40 border border-white/10'}`}
                                         >
@@ -162,12 +161,12 @@ export default function BrandListing({ brand, onProductClick, onBack }: BrandLis
 
                                     <div className="aspect-square bg-black/60 p-6 md:p-10 flex items-center justify-center relative">
                                         <div className="absolute inset-0 topography-lines opacity-5"></div>
-                                        <img 
-                                            src={getUnsplashResponsiveUrl(product.image, 600)} 
+                                        <img
+                                            src={getUnsplashResponsiveUrl(product.image, 600)}
                                             srcSet={productImgSrcSet}
                                             sizes="(max-width: 768px) 45vw, 20vw"
-                                            alt={product.name} 
-                                            className="w-full h-full object-contain group-hover:scale-110 transition-all duration-700 relative z-10" 
+                                            alt={product.name}
+                                            className="w-full h-full object-contain group-hover:scale-110 transition-all duration-700 relative z-10"
                                             loading="lazy"
                                         />
                                     </div>
@@ -179,7 +178,7 @@ export default function BrandListing({ brand, onProductClick, onBack }: BrandLis
                                                 <p className="text-[8px] md:text-[10px] text-white/20 font-black uppercase tracking-widest mb-1">{isRent ? 'MONTHLY' : 'TOTAL'}</p>
                                                 <p className="text-lg md:text-xl font-black text-white tracking-tighter italic">₹{product.price.toLocaleString()}</p>
                                             </div>
-                                            <button 
+                                            <button
                                                 onClick={(e) => { e.stopPropagation(); onProductClick(product.id); }}
                                                 className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 group-hover:bg-brand-primary group-hover:text-white transition-all"
                                             >
@@ -195,8 +194,8 @@ export default function BrandListing({ brand, onProductClick, onBack }: BrandLis
             </div>
 
             {quickViewProduct && (
-                <QuickViewModal 
-                    product={quickViewProduct} 
+                <QuickViewModal
+                    product={quickViewProduct}
                     onClose={() => setQuickViewProduct(null)}
                     onNavigateToProduct={(id) => { setQuickViewProduct(null); onProductClick(id); }}
                 />

@@ -27,6 +27,10 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
         return () => clearTimeout(timer);
     }, [category, type, searchQuery, favoritesOnly, refurbishedOnly, selectedType, selectedCondition]);
 
+    useEffect(() => {
+        if (type) setSelectedType(type);
+    }, [type]);
+
     const filteredProducts = useMemo(() => {
         let results = products;
         if (favoritesOnly) {
@@ -43,8 +47,9 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
             if (category && category !== 'All') {
                 results = results.filter(p => p.category === category || (category === 'Desktop' && p.category === 'Monitor') || (category === 'Accessories' && ['Keyboards', 'Mice', 'Audio'].includes(p.category || '')));
             }
-            const activeType = type || (selectedType !== 'all' ? selectedType : null);
-            if (activeType) results = results.filter(p => p.type === activeType);
+            if (selectedType !== 'all') {
+                results = results.filter(p => p.type === selectedType);
+            }
             const activeCondition = refurbishedOnly ? 'Refurbished' : (selectedCondition !== 'All' ? selectedCondition : null);
             if (activeCondition) results = results.filter(p => p.condition === activeCondition);
         }
@@ -63,22 +68,47 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
         <div className="min-h-screen max-w-7xl mx-auto px-4 md:px-8 pt-8">
             <div className="flex flex-col lg:flex-row gap-12 items-start">
                 <aside className="hidden lg:block w-72 sticky top-32 h-[calc(100vh-160px)] overflow-y-auto no-scrollbar pr-4">
-                    <h3 className="venus-heading">Catalog</h3>
-                    <div className="space-y-10">
+                    <div className="space-y-12">
+                        {/* Categories Section */}
                         <div>
-                            <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-4">Categories</p>
-                            <div className="flex flex-col gap-2">
+                            <h3 className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-6">Categories</h3>
+                            <div className="flex flex-col gap-3">
                                 {categories.map((cat) => (
                                     <button
                                         key={cat.value}
                                         onClick={() => onCategoryChange?.(cat.value)}
-                                        className={`flex items-center gap-4 px-5 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${category === cat.value ? 'bg-white text-black' : 'text-gray-500 hover:text-white'
+                                        className={`group w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-300 ${category === cat.value
+                                                ? 'bg-white text-black scale-100 shadow-xl'
+                                                : 'text-white/40 hover:text-white hover:bg-white/5'
                                             }`}
                                     >
-                                        <span className="material-symbols-outlined text-[18px]">{cat.icon}</span>
+                                        <span className={`material-symbols-outlined text-[20px] transition-colors ${category === cat.value ? 'text-black' : 'text-white/40 group-hover:text-white'
+                                            }`}>{cat.icon}</span>
                                         {cat.label}
                                     </button>
                                 ))}
+                            </div>
+                        </div>
+
+                        {/* Rent or Buy Section */}
+                        <div>
+                            <h3 className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-6">Rent or Buy</h3>
+                            <div className="p-1.5 bg-brand-card border border-white/5 rounded-2xl flex relative">
+                                {['all', 'rent', 'buy'].map((t) => {
+                                    const isActive = selectedType === t;
+                                    return (
+                                        <button
+                                            key={t}
+                                            onClick={() => setSelectedType(t as 'all' | 'rent' | 'buy')}
+                                            className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative z-10 ${isActive
+                                                    ? 'bg-white text-black shadow-lg'
+                                                    : 'text-white/40 hover:text-white'
+                                                }`}
+                                        >
+                                            {t}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>

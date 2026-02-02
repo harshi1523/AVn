@@ -16,8 +16,8 @@ const categories = [
     name: "Desktops",
     filter: "Desktop",
     desc: "Workstations & Professional Monitors",
-    img: "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?q=80&w=600&auto=format&fit=crop",
-    color: "from-gray-900/40"
+    img: "https://images.unsplash.com/photo-1593640408182-31c70c8268f5?q=80&w=600&auto=format&fit=crop",
+    color: "from-violet-900/40"
   },
   {
     name: "Accessories",
