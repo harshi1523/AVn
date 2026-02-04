@@ -71,18 +71,18 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                     <div className="space-y-12">
                         {/* Categories Section */}
                         <div>
-                            <h3 className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-6">Categories</h3>
+                            <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em] mb-6">Categories</h3>
                             <div className="flex flex-col gap-3">
                                 {categories.map((cat) => (
                                     <button
                                         key={cat.value}
                                         onClick={() => onCategoryChange?.(cat.value)}
                                         className={`group w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-300 ${category === cat.value
-                                                ? 'bg-white text-black scale-100 shadow-xl'
-                                                : 'text-white/40 hover:text-white hover:bg-white/5'
+                                            ? 'bg-white text-black scale-100 shadow-xl'
+                                            : 'text-white hover:bg-white/5'
                                             }`}
                                     >
-                                        <span className={`material-symbols-outlined text-[20px] transition-colors ${category === cat.value ? 'text-black' : 'text-white/40 group-hover:text-white'
+                                        <span className={`material-symbols-outlined text-[20px] transition-colors ${category === cat.value ? 'text-black' : 'text-white'
                                             }`}>{cat.icon}</span>
                                         {cat.label}
                                     </button>
@@ -92,7 +92,7 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
 
                         {/* Rent or Buy Section */}
                         <div>
-                            <h3 className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-6">Rent or Buy</h3>
+                            <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em] mb-6">Rent or Buy</h3>
                             <div className="p-1.5 bg-brand-card border border-white/5 rounded-2xl flex relative">
                                 {['all', 'rent', 'buy'].map((t) => {
                                     const isActive = selectedType === t;
@@ -101,8 +101,8 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                                             key={t}
                                             onClick={() => setSelectedType(t as 'all' | 'rent' | 'buy')}
                                             className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative z-10 ${isActive
-                                                    ? 'bg-white text-black shadow-lg'
-                                                    : 'text-white/40 hover:text-white'
+                                                ? 'bg-white text-black shadow-lg'
+                                                : 'text-white'
                                                 }`}
                                         >
                                             {t}

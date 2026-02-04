@@ -96,7 +96,7 @@ export default function BrandListing({ brand, onProductClick, onBack }: BrandLis
 
                 <div className="absolute inset-0 bg-gradient-to-t from-brand-page via-black/40 to-transparent"></div>
                 <div className="absolute inset-0 max-w-7xl mx-auto px-6 flex flex-col justify-center items-start">
-                    <button onClick={onBack} className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 hover:text-white mb-10 flex items-center gap-2 group">
+                    <button onClick={onBack} className="text-[10px] font-black uppercase tracking-[0.4em] text-white hover:text-white/80 mb-10 flex items-center gap-2 group">
                         <span className="material-symbols-outlined text-sm group-hover:-translate-x-1 transition-transform">arrow_back</span> Back to Home
                     </button>
                     <div className="flex items-center gap-8 mb-6">
@@ -143,8 +143,8 @@ export default function BrandListing({ brand, onProductClick, onBack }: BrandLis
                                 >
                                     <div className="absolute top-4 left-4 md:top-6 md:left-6 z-30">
                                         <div className={`px-2.5 md:px-4 py-1 md:py-1.5 rounded-full text-[7px] md:text-[8px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] shadow-lg border ${isRent
-                                                ? 'bg-brand-primary text-white border-brand-primary'
-                                                : 'bg-white text-black border-white'
+                                            ? 'bg-brand-primary text-white border-brand-primary'
+                                            : 'bg-white text-black border-white'
                                             }`}>
                                             {isRent ? 'RENT' : 'BUY'}
                                         </div>
