@@ -37,7 +37,7 @@ interface StoreContextType {
   updateQuantity: (cartItemId: string, delta: number) => void;
   removeFromCart: (cartItemId: string) => void;
   placeOrder: (address: string, totalOverride?: number, rentalDetails?: { start?: string, end?: string, deposit?: number, method?: 'pickup' | 'delivery' }) => Promise<void>;
-  addTicket: (subject: string) => Promise<void>;
+  addTicket: (subject: string, description: string) => Promise<void>;
   toggleWishlist: (productId: string) => Promise<void>;
   toggleCart: (isOpen: boolean) => void;
   toggleAuth: (isOpen: boolean) => void;
@@ -224,6 +224,30 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     }
   };
 
+  const sendWelcomeEmail = async (user: User) => {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) return;
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = `Draft a warm, professional welcome email for a new user named '${user.name}' joining 'SB Tech Solution'. Tone: Exciting, professional, and welcoming. Keep it short (2-3 sentences). Mention we are excited to have them.`;
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+      });
+      const emailText = response.text || "Welcome to SB Tech Solution! We are excited to have you on board.";
+      const newNotification: Notification = {
+        id: Math.random().toString(36).substr(2, 9),
+        title: "Welcome to SB Tech!",
+        message: `A welcome email has been sent to ${user.email}`,
+        content: emailText,
+        timestamp: Date.now()
+      };
+      setNotifications(prev => [newNotification, ...prev]);
+    } catch (err) {
+      console.error("AI Welcome Email Error:", err);
+    }
+  };
+
   const loginWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
@@ -251,6 +275,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
           tickets: []
         };
         await setDoc(userDocRef, newUser);
+        sendWelcomeEmail(newUser); // Send welcome email for new Google users
       } else {
         await updateDoc(userDocRef, baseProfile);
       }
@@ -265,7 +290,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   const signup = async (name: string, email: string, password: string) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(userCredential.user, { displayName: name }); // Update Auth Profile immediately
+      await updateProfile(userCredential.user, { displayName: name });
       const newUser: User = {
         id: userCredential.user.uid,
         name,
@@ -279,6 +304,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
         tickets: []
       };
       await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
+      sendWelcomeEmail(newUser); // Send welcome email for new signups
       setIsAuthOpen(false);
       return { success: true, message: 'Account created successfully' };
     } catch (err: any) {
@@ -440,9 +466,9 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     generateAIEmail(newOrder, 'new');
   };
 
-  const addTicket = async (subject: string) => {
+  const addTicket = async (subject: string, description: string) => {
     if (!user) return;
-    const newTicket: Ticket = { id: `TIC-${Math.floor(Math.random() * 1000)}`, subject, status: 'Open', date: new Date().toISOString().split('T')[0], userName: user.name };
+    const newTicket: Ticket = { id: `TIC-${Math.floor(Math.random() * 1000)}`, subject, description, status: 'Open', date: new Date().toISOString().split('T')[0], userName: user.name };
     const updatedTickets = [newTicket, ...tickets];
     await syncUserField('tickets', updatedTickets);
   };
@@ -490,8 +516,16 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     console.error("Order not found for update:", orderId);
   };
 
-  const updateTicketStatus = (ticketId: string, status: Ticket['status']) => {
-    // Admin functionality stub
+  const updateTicketStatus = async (ticketId: string, status: Ticket['status']) => {
+    for (const u of allUsers) {
+      if (u.tickets?.some(t => t.id === ticketId)) {
+        const updatedTickets = u.tickets.map(t => t.id === ticketId ? { ...t, status } : t);
+        const userDocRef = doc(db, 'users', u.id);
+        await updateDoc(userDocRef, { tickets: updatedTickets });
+        return;
+      }
+    }
+    console.error("Ticket not found for update:", ticketId);
   };
 
   const refreshProfile = async () => {

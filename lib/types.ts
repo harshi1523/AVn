@@ -58,7 +58,8 @@ export interface Order {
 export interface Ticket {
     id: string;
     subject: string;
-    status: 'Open' | 'Resolved';
+    description: string;
+    status: 'Open' | 'Pending' | 'In Progress' | 'Resolved';
     date: string;
     userName?: string;
 }

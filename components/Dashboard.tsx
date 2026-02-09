@@ -13,17 +13,18 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
     const { user, orders, tickets, addTicket, logout, updateRentalPreferences, refreshProfile } = useStore();
     const [activeTab, setActiveTab] = useState<'rentals' | 'orders' | 'support'>(initialTab);
     const [ticketSubject, setTicketSubject] = useState("");
+    const [ticketDescription, setTicketDescription] = useState("");
 
     // Modal States
     const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
-    // DEBUG: Monitor KYC Status changes
+
     React.useEffect(() => {
         console.log("🔄 Dashboard: KYC Status Changed to:", user?.kycStatus);
     }, [user?.kycStatus]);
 
-    // Event listener removed - logic moved to direct handler
+
 
     if (!user) return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
@@ -290,22 +291,31 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                         <div className="space-y-8">
                             <div className="bg-brand-card border border-brand-border rounded-[2.5rem] p-10 shadow-2xl">
                                 <h3 className="text-2xl font-display font-bold text-white mb-6">Need help?</h3>
-                                <div className="flex flex-col md:flex-row gap-4">
-                                    <input
-                                        type="text"
-                                        placeholder="Tell us what you need help with..."
-                                        value={ticketSubject}
-                                        onChange={(e) => setTicketSubject(e.target.value)}
-                                        className="flex-1 bg-black/40 border border-brand-border rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-primary transition-all placeholder:text-gray-500 font-medium"
-                                    />
+                                <div className="flex flex-col md:flex-row items-end gap-4">
+                                    <div className="flex-1 flex flex-col gap-4">
+                                        <input
+                                            type="text"
+                                            placeholder="Subject (e.g., Product delivery delay)"
+                                            value={ticketSubject}
+                                            onChange={(e) => setTicketSubject(e.target.value)}
+                                            className="bg-black/40 border border-brand-border rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-primary transition-all placeholder:text-gray-500 font-medium w-full"
+                                        />
+                                        <textarea
+                                            placeholder="Description (e.g., My order #12345 is delayed...)"
+                                            value={ticketDescription}
+                                            onChange={(e) => setTicketDescription(e.target.value)}
+                                            className="bg-black/40 border border-brand-border rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-primary transition-all placeholder:text-gray-500 font-medium w-full min-h-[120px] resize-none"
+                                        />
+                                    </div>
                                     <button
                                         onClick={() => {
-                                            if (ticketSubject) {
-                                                addTicket(ticketSubject);
+                                            if (ticketSubject && ticketDescription) {
+                                                addTicket(ticketSubject, ticketDescription);
                                                 setTicketSubject("");
+                                                setTicketDescription("");
                                             }
                                         }}
-                                        className="bg-brand-primary text-white font-black text-xs uppercase tracking-[0.2em] px-10 py-4 rounded-2xl hover:bg-brand-primaryHover transition-all shadow-lg active:scale-95"
+                                        className="bg-brand-primary text-white font-black text-xs uppercase tracking-[0.2em] px-6 py-3 rounded-2xl hover:bg-brand-primaryHover transition-all shadow-lg active:scale-95 h-fit mb-1"
                                     >
                                         Send Message
                                     </button>
@@ -322,10 +332,15 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                                             </div>
                                             <div>
                                                 <h4 className="text-white font-bold">{ticket.subject}</h4>
-                                                <p className="text-[10px] text-brand-muted font-black uppercase tracking-widest mt-1">Ticket {ticket.id} • Created on {ticket.date}</p>
+                                                <p className="text-gray-400 text-sm mt-1">{ticket.description}</p>
+                                                <p className="text-[10px] text-brand-muted font-black uppercase tracking-widest mt-2">Ticket {ticket.id} • Created on {ticket.date}</p>
                                             </div>
                                         </div>
-                                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${ticket.status === 'Open' ? 'bg-brand-primary/10 text-brand-primary border-brand-primary/20' : 'bg-green-500/10 text-green-500 border-green-500/20'}`}>
+                                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${ticket.status === 'Open' ? 'bg-brand-primary/10 text-brand-primary border-brand-primary/20' :
+                                            ticket.status === 'Resolved' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                                                ticket.status === 'In Progress' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' :
+                                                    'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' // Pending
+                                            }`}>
                                             {ticket.status}
                                         </span>
                                     </div>
