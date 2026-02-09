@@ -45,6 +45,12 @@ export default function AuthModal() {
 
     if (!res.success) {
       setError(res.message);
+    } else {
+      // Success handling with redirection
+      if (mode === 'signup') {
+        const event = new CustomEvent('navigate', { detail: { view: 'kyc' } });
+        window.dispatchEvent(event);
+      }
     }
     setLoading(false);
   };
@@ -55,6 +61,10 @@ export default function AuthModal() {
     const res = await loginWithGoogle();
     if (!res.success) {
       setError(res.message);
+    } else {
+      // Success handling with redirection to home
+      const event = new CustomEvent('navigate', { detail: { view: 'home' } });
+      window.dispatchEvent(event);
     }
     setLoading(false);
   };

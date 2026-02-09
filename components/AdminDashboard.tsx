@@ -32,7 +32,7 @@ export default function AdminDashboard() {
     { label: 'Total Revenue', value: `₹${(finance.totalRevenue / 1000000).toFixed(1)}M`, icon: 'payments' },
     { label: 'Growth', value: `+${finance.monthlyGrowth}%`, icon: 'trending_up' },
     { label: 'Active Rentals', value: allOrders.filter(o => o.status === 'Active Rental' || o.status === 'In Use').length, icon: 'laptop_mac' },
-    { label: 'Support Tickets', value: allTickets.filter(t => t.status === 'Open').length, icon: 'contact_support' },
+    { label: 'Support Tickets', value: allTickets.filter(t => t.status !== 'Resolved').length, icon: 'contact_support' },
   ];
 
   const handleStatusChange = (orderId: string, status: Order['status']) => {
@@ -349,6 +349,65 @@ export default function AdminDashboard() {
                     ))}
                     {allUsers.length === 0 && ( /* Fallback if no users loaded */
                       <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">No users found. (Ensure you are logged in as Admin and Firestore sync is active)</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'support' && (
+            <div className="bg-brand-card border border-brand-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl overflow-hidden">
+              <h3 className="text-xl font-bold text-white mb-6">Support Tickets</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="text-[9px] text-gray-500 font-black uppercase tracking-[0.4em] border-b border-white/5">
+                      <th className="px-6 py-6 whitespace-nowrap">ID</th>
+                      <th className="px-6 py-6 whitespace-nowrap">Subject & Description</th>
+                      <th className="px-6 py-6 whitespace-nowrap">Customer</th>
+                      <th className="px-6 py-6 whitespace-nowrap">Date</th>
+                      <th className="px-6 py-6 whitespace-nowrap">Status</th>
+                      <th className="px-6 py-6 text-right whitespace-nowrap">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allTickets.map(ticket => (
+                      <tr key={ticket.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                        <td className="px-6 py-6 text-white font-mono">{ticket.id}</td>
+                        <td className="px-6 py-6 max-w-md">
+                          <p className="text-white font-bold">{ticket.subject}</p>
+                          <p className="text-gray-400 text-xs mt-1 truncate">{ticket.description}</p>
+                        </td>
+                        <td className="px-6 py-6">
+                          <p className="text-white font-bold">{ticket.userName}</p>
+                        </td>
+                        <td className="px-6 py-6 text-gray-400 text-sm">{ticket.date}</td>
+                        <td className="px-6 py-6">
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${ticket.status === 'Open' ? 'bg-brand-primary/10 text-brand-primary border-brand-primary/20' :
+                              ticket.status === 'Resolved' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                                ticket.status === 'In Progress' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' :
+                                  'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                            }`}>
+                            {ticket.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-6 text-right">
+                          <select
+                            value={ticket.status}
+                            onChange={(e) => updateTicketStatus(ticket.id, e.target.value as any)}
+                            className="bg-black/40 border border-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-gray-400 p-2 focus:outline-none focus:border-brand-primary"
+                          >
+                            <option value="Open">Open</option>
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Resolved">Resolved</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                    {allTickets.length === 0 && (
+                      <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">No tickets found.</td></tr>
                     )}
                   </tbody>
                 </table>

@@ -3,7 +3,9 @@
 
 ---
 
-## Test Script Information
+## Test Script $$
+
+$$
 - **Application**: SB Tech Solution
 - **Version**: 1.0
 - **Test Type**: User Acceptance Testing (UAT)
