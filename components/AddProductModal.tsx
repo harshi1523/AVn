@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useStore } from "../lib/store";
-import { Product, ProductFeature } from "../lib/mockData";
+import { Product, ProductFeature, RentalOption } from "../lib/mockData";
 import { supabase } from "../lib/supabase"; // Use Supabase Storage
 
 interface AddProductModalProps {
@@ -21,8 +21,29 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
         rating: 5,
         reviews: 0,
         image: '', // No default image
-        features: []
+        features: [],
+        rentalOptions: [],
+        deposit: 0
     });
+
+    // Rental Option State
+    const [newRentalOption, setNewRentalOption] = useState<RentalOption>({ months: 0, price: 0, label: '', discount: '' });
+
+    const handleAddRentalOption = () => {
+        if (!newRentalOption.months || !newRentalOption.price) return;
+        setFormData(prev => ({
+            ...prev,
+            rentalOptions: [...(prev.rentalOptions || []), newRentalOption]
+        }));
+        setNewRentalOption({ months: 0, price: 0, label: '', discount: '' });
+    };
+
+    const handleRemoveRentalOption = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            rentalOptions: (prev.rentalOptions || []).filter((_, i) => i !== index)
+        }));
+    };
 
     const handleAddFeature = () => {
         if (!newFeature.title || !newFeature.description) return;
@@ -185,6 +206,85 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                         </div>
                     </div>
 
+                    {/* Rental Specific Fields */}
+                    {formData.type === 'rent' && (
+                        <div className="space-y-4 pt-4 border-t border-white/10">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Security Deposit (₹)</label>
+                                <input
+                                    type="number"
+                                    name="deposit"
+                                    value={formData.deposit || ''}
+                                    onChange={handleChange}
+                                    className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
+                                    placeholder="0.00"
+                                />
+                            </div>
+
+                            <div className="flex justify-between items-center">
+                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Rental Tenure Options</label>
+                                <span className="text-[10px] text-gray-600">{formData.rentalOptions?.length || 0} Options</span>
+                            </div>
+
+                            <div className="flex gap-4 items-end">
+                                <div className="flex-1 space-y-1">
+                                    <label className="text-[9px] text-gray-500">Months</label>
+                                    <input
+                                        type="number"
+                                        placeholder="Duration"
+                                        value={newRentalOption.months || ''}
+                                        onChange={e => setNewRentalOption({ ...newRentalOption, months: Number(e.target.value) })}
+                                        className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm"
+                                    />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                    <label className="text-[9px] text-gray-500">Price (₹)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="Price"
+                                        value={newRentalOption.price || ''}
+                                        onChange={e => setNewRentalOption({ ...newRentalOption, price: Number(e.target.value) })}
+                                        className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm"
+                                    />
+                                </div>
+                                <div className="flex-[2] space-y-1">
+                                    <label className="text-[9px] text-gray-500">Label (e.g. Short Term)</label>
+                                    <input
+                                        placeholder="Label"
+                                        value={newRentalOption.label}
+                                        onChange={e => setNewRentalOption({ ...newRentalOption, label: e.target.value })}
+                                        className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm"
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleAddRentalOption}
+                                    className="bg-brand-primary/20 hover:bg-brand-primary/40 text-brand-primary border border-brand-primary/50 w-11 h-11 rounded-xl flex items-center justify-center mb-[1px]"
+                                >
+                                    <span className="material-symbols-outlined">add</span>
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {formData.rentalOptions?.map((opt, index) => (
+                                    <div key={index} className="bg-white/5 rounded-xl p-4 flex justify-between items-center group">
+                                        <div>
+                                            <p className="text-white font-bold text-sm">{opt.months} Months - ₹{opt.price}</p>
+                                            <p className="text-gray-400 text-xs">{opt.label}</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveRentalOption(index)}
+                                            className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all p-2"
+                                        >
+                                            <span className="material-symbols-outlined text-sm">delete</span>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="space-y-4 pt-4 border-t border-white/10">
                         <div className="flex justify-between items-center">
                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Features</label>
@@ -252,6 +352,13 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                     onChange={async (e) => {
                                         const file = e.target.files?.[0];
                                         if (!file) return;
+
+                                        // Validate File Type
+                                        const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+                                        if (!validTypes.includes(file.type)) {
+                                            alert('Invalid file type. Please upload JPG, PNG, or WEBP.');
+                                            return;
+                                        }
 
                                         setLoading(true);
                                         try {

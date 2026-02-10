@@ -557,6 +557,9 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       if (u.orders?.some(o => o.id === orderId)) {
         const updatedOrders = u.orders.map(o => o.id === orderId ? { ...o, status } : o);
 
+        // Optimistic State Update for Admin
+        setAllUsers(prev => prev.map(user => user.id === u.id ? { ...user, orders: updatedOrders } : user));
+
         // Update Firestore
         const userDocRef = doc(db, 'users', u.id);
         await updateDoc(userDocRef, { orders: updatedOrders });
@@ -574,6 +577,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     for (const u of allUsers) {
       if (u.tickets?.some(t => t.id === ticketId)) {
         const updatedTickets = u.tickets.map(t => t.id === ticketId ? { ...t, status } : t);
+        setAllUsers(prev => prev.map(user => user.id === u.id ? { ...user, tickets: updatedTickets } : user));
         const userDocRef = doc(db, 'users', u.id);
         await updateDoc(userDocRef, { tickets: updatedTickets });
         return;
@@ -667,6 +671,9 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     }
 
     await updateDoc(userDocRef, updateData);
+
+    // Optimistic Update for Admin View (Important for KYC Status)
+    setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updateData } : u));
 
     // Optimistic update for current user if applicable
     if (user && user.id === userId) {

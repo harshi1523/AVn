@@ -1,6 +1,6 @@
 
 import React, { useState } from "react";
-import { useStore, Order } from "../lib/store";
+import { useStore, Order, User } from "../lib/store";
 import { Product } from "../lib/mockData";
 import QuickViewModal from "./QuickViewModal";
 import AddProductModal from "./AddProductModal";
@@ -8,35 +8,113 @@ import { generateInvoice } from "../lib/invoice";
 
 export default function AdminDashboard() {
   const { user, finance, orders, tickets, allUsers, products: allProducts, logout, updateOrderStatus, updateTicketStatus, updateKYCStatus, deleteProduct } = useStore();
+
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'orders' | 'users' | 'financials' | 'reports' | 'settings' | 'support'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
-  const [selectedKYCUser, setSelectedKYCUser] = useState<any>(null); // Using any for simplicity with Store User type mismatch
+  const [selectedKYCUser, setSelectedKYCUser] = useState<any>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-
-  // Event listener removed - actions handled directly in handlers
+  const [searchTerm, setSearchTerm] = useState('');
+  const [viewingUser, setViewingUser] = useState<User | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   const handleNavigateToProduct = (id: string) => {
-    // Navigation wrapper
     console.log("Navigating to product:", id);
   };
 
-  // Aggregate all orders from all users for Admin
   const allOrders = allUsers.flatMap(user => user.orders || []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
   const allTickets = allUsers.flatMap(user => user.tickets || []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  // Calculate Total Revenue from Completed orders
-  const calculatedRevenue = allOrders
+  const [dateRange, setDateRange] = useState<'7d' | '30d' | '3m' | '6m' | '12m' | 'custom'>('7d');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+
+  // 1. Determine Date Range
+  const getDateRangeStart = () => {
+    const now = new Date();
+    if (dateRange === 'custom') return customStart ? new Date(customStart) : new Date(0); // Default to epoch if invalid
+    if (dateRange === '7d') return new Date(now.setDate(now.getDate() - 7));
+    if (dateRange === '30d') return new Date(now.setDate(now.getDate() - 30));
+    if (dateRange === '3m') return new Date(now.setMonth(now.getMonth() - 3));
+    if (dateRange === '6m') return new Date(now.setMonth(now.getMonth() - 6));
+    if (dateRange === '12m') return new Date(now.setFullYear(now.getFullYear() - 1));
+    return new Date(0);
+  };
+
+  const startDate = getDateRangeStart();
+  const endDate = dateRange === 'custom' && customEnd ? new Date(customEnd) : new Date();
+
+  // Ensure endDate includes the full day if it's today or custom date (set to end of day)
+  endDate.setHours(23, 59, 59, 999);
+
+  // 2. Filter Products (for Inventory)
+  const filteredProducts = allProducts.filter(p =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.type && p.type.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  // 3. Filter Orders
+  const filteredOrders = allOrders.filter(o => {
+    const d = new Date(o.date);
+    return d >= startDate && d <= endDate;
+  });
+
+  // 3. Filter Tickets
+  const filteredTickets = tickets.filter(t => {
+    const d = new Date(t.date);
+    return d >= startDate && d <= endDate;
+  });
+
+  // 4. Calculate Stats
+  // Total Revenue
+  const calculatedRevenue = filteredOrders
     .filter(o => o.status === 'Completed' || o.status === 'Delivered')
     .reduce((acc, order) => acc + (order.total || 0), 0);
 
+  // Growth (vs Previous Period)
+  const duration = endDate.getTime() - startDate.getTime();
+  const previousEndDate = new Date(startDate);
+  const previousStartDate = new Date(startDate.getTime() - duration);
+
+  const previousOrders = allOrders.filter(o => {
+    const d = new Date(o.date);
+    return d >= previousStartDate && d < previousEndDate;
+  });
+
+  const previousRevenue = previousOrders
+    .filter(o => o.status === 'Completed' || o.status === 'Delivered')
+    .reduce((acc, order) => acc + (order.total || 0), 0);
+
+  const growthPercentage = previousRevenue === 0
+    ? (calculatedRevenue > 0 ? 100 : 0)
+    : ((calculatedRevenue - previousRevenue) / previousRevenue) * 100;
+
+  // Active Rentals (As of endDate)
+  const activeRentalsCount = allOrders.filter(o => {
+    // Check for rental items
+    if (o.items.some(i => i.type === 'rent')) {
+      // If we have rental dates, check overlap with endDate
+      if (o.rentalStartDate && o.rentalEndDate) {
+        const start = new Date(o.rentalStartDate);
+        const end = new Date(o.rentalEndDate);
+        // Active if start <= endDate AND end >= endDate
+        return start <= endDate && end >= endDate;
+      }
+      // Fallback to status if dates missing
+      return (o.status === 'Active Rental' || o.status === 'In Use');
+    }
+    return false;
+  }).length;
+
+
   const stats = [
     { label: 'Total Revenue', value: `₹${(calculatedRevenue / 1000000).toFixed(2)}M`, icon: 'payments' },
-    { label: 'Growth', value: `+${finance.monthlyGrowth}%`, icon: 'trending_up' },
-    { label: 'Active Rentals', value: allOrders.filter(o => o.status === 'Active Rental' || o.status === 'In Use').length, icon: 'laptop_mac' },
-    { label: 'Support Tickets', value: allTickets.filter(t => t.status !== 'Resolved').length, icon: 'contact_support' },
+    { label: 'Growth', value: `${growthPercentage >= 0 ? '+' : ''}${growthPercentage.toFixed(1)}%`, icon: 'trending_up' },
+    { label: 'Active Rentals', value: activeRentalsCount, icon: 'laptop_mac' },
+    { label: 'Support Tickets', value: filteredTickets.filter(t => t.status !== 'Resolved').length, icon: 'contact_support' },
   ];
 
   const handleStatusChange = (orderId: string, status: Order['status']) => {
@@ -45,7 +123,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="mx-auto max-w-[1440px] px-4 py-8 md:px-8 animate-in fade-in duration-500 relative">
-      {/* Mobile Menu Button */}
+      {/* Mobile Menu logic ... */}
       <button
         onClick={() => setIsMobileMenuOpen(true)}
         className="lg:hidden fixed top-6 left-6 z-50 w-12 h-12 bg-brand-card/80 backdrop-blur-md border border-brand-border rounded-xl flex items-center justify-center text-white shadow-lg"
@@ -62,7 +140,8 @@ export default function AdminDashboard() {
       )}
 
       <div className="flex flex-col lg:flex-row gap-8">
-        {/* Sidebar */}
+        {/* Sidebar ... */}
+        {/* ... Sidebar code unchanged ... */}
         <div className={`
           fixed inset-y-0 left-0 z-50 w-[280px] lg:w-72 bg-brand-page lg:bg-transparent transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 flex-shrink-0 p-6 lg:p-0 h-full lg:h-auto overflow-y-auto lg:overflow-visible border-r border-brand-border lg:border-none
           ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:shadow-none'}
@@ -116,10 +195,46 @@ export default function AdminDashboard() {
 
         {/* Admin Content Area */}
         <div className="flex-1 mt-16 lg:mt-0">
-          <div className="flex items-center justify-between mb-8 lg:mb-10">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-8 lg:mb-10 gap-4">
             <h1 className="text-3xl lg:text-5xl font-display font-bold text-white tracking-tighter capitalize">
               AvN {activeTab}
             </h1>
+
+            {activeTab === 'overview' && (
+              <div className="flex flex-wrap items-center gap-4">
+                {dateRange === 'custom' && (
+                  <div className="flex items-center gap-2 bg-black/40 border border-brand-border rounded-xl px-2">
+                    <input
+                      type="date"
+                      value={customStart}
+                      onChange={(e) => setCustomStart(e.target.value)}
+                      className="bg-transparent text-gray-400 text-xs p-2 focus:outline-none"
+                      placeholder="Start"
+                    />
+                    <span className="text-gray-600">-</span>
+                    <input
+                      type="date"
+                      value={customEnd}
+                      onChange={(e) => setCustomEnd(e.target.value)}
+                      className="bg-transparent text-gray-400 text-xs p-2 focus:outline-none"
+                      placeholder="End"
+                    />
+                  </div>
+                )}
+                <select
+                  value={dateRange}
+                  onChange={(e) => setDateRange(e.target.value as any)}
+                  className="bg-black/40 border border-brand-border rounded-xl text-sm text-gray-400 px-4 py-2 focus:outline-none focus:border-brand-primary cursor-pointer hover:bg-white/5 transition-colors"
+                >
+                  <option value="7d">Last 7 Days</option>
+                  <option value="30d">Last 30 Days</option>
+                  <option value="3m">Last 3 Months</option>
+                  <option value="6m">Last 6 Months</option>
+                  <option value="12m">Last 12 Months</option>
+                  <option value="custom">Custom Range</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {activeTab === 'overview' && (
@@ -137,40 +252,66 @@ export default function AdminDashboard() {
               </div>
 
               <div className="bg-brand-card border border-brand-border rounded-[2rem] lg:rounded-[3rem] p-6 lg:p-12 shadow-2xl" data-testid="sales-chart-container">
-                <h3 className="text-xl lg:text-2xl font-display font-bold text-white mb-8 lg:mb-12">Sales Growth (Last 6 Months)</h3>
+                <h3 className="text-xl lg:text-2xl font-display font-bold text-white mb-8 lg:mb-12">
+                  Sales Growth ({dateRange === 'custom' ? 'Custom Range' : dateRange === '7d' ? 'Last 7 Days' : dateRange === '30d' ? 'Last 30 Days' : 'Monthly'})
+                </h3>
 
                 {/* Dynamic Sales Graph */}
                 {(() => {
-                  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                  const today = new Date();
-                  const last6Months = Array.from({ length: 6 }, (_, i) => {
-                    const d = new Date(today.getFullYear(), today.getMonth() - 5 + i, 1);
-                    return { month: months[d.getMonth()], year: d.getFullYear(), value: 0 };
-                  });
+                  // Determine resolution based on duration
+                  const dayDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24));
+                  const isDaily = dayDiff <= 31;
 
-                  // Aggregate data
-                  allOrders.forEach(order => {
+                  let chartData = [];
+                  if (isDaily) {
+                    // Generate daily buckets
+                    for (let i = 0; i < dayDiff; i++) {
+                      const d = new Date(startDate);
+                      d.setDate(d.getDate() + i);
+                      const label = `${d.getDate()}/${d.getMonth() + 1}`;
+                      chartData.push({ date: d, label, value: 0 });
+                    }
+                  } else {
+                    // Generate monthly buckets (approx)
+                    const monthDiff = (endDate.getFullYear() - startDate.getFullYear()) * 12 + (endDate.getMonth() - startDate.getMonth()) + 1;
+                    for (let i = 0; i < monthDiff; i++) {
+                      const d = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
+                      const label = d.toLocaleString('default', { month: 'short' });
+                      chartData.push({ date: d, label, value: 0 });
+                    }
+                  }
+
+                  // Aggregate Data
+                  filteredOrders.forEach(order => {
                     if (order.status === 'Completed' || order.status === 'Delivered') {
                       const orderDate = new Date(order.date);
-                      const monthIndex = last6Months.findIndex(m => m.month === months[orderDate.getMonth()] && m.year === orderDate.getFullYear());
-                      if (monthIndex !== -1) {
-                        last6Months[monthIndex].value += order.total;
+                      // Find bucket
+                      const bucket = chartData.find(b => {
+                        if (isDaily) {
+                          return b.date.getDate() === orderDate.getDate() && b.date.getMonth() === orderDate.getMonth() && b.date.getFullYear() === orderDate.getFullYear();
+                        } else {
+                          return b.date.getMonth() === orderDate.getMonth() && b.date.getFullYear() === orderDate.getFullYear();
+                        }
+                      });
+                      if (bucket) {
+                        bucket.value += order.total;
                       }
                     }
                   });
 
-                  const maxValue = Math.max(...last6Months.map(d => d.value), 1000); // Minimum 1000 to avoid division by zero
+
+                  const maxValue = Math.max(...chartData.map(d => d.value), 1000); // Minimum 1000 to avoid division by zero
 
                   return (
                     <>
-                      <div className="h-56 lg:h-72 flex items-end justify-between gap-2 lg:gap-5 border-b border-white/10 pb-6">
-                        {last6Months.map((data, i) => {
+                      <div className="h-56 lg:h-72 flex items-end justify-between gap-1 lg:gap-2 border-b border-white/10 pb-6 transition-all duration-500">
+                        {chartData.map((data, i) => {
                           const heightPercentage = Math.max((data.value / maxValue) * 100, 5); // Min 5% height
                           return (
                             <div key={i} className="flex-1 flex flex-col items-center group relative">
                               {/* Tooltip */}
-                              <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-brand-elevated border border-brand-border text-white text-xs p-2 rounded pointer-events-none whitespace-nowrap z-10">
-                                {data.month} {data.year}: ₹{data.value.toLocaleString()}
+                              <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-brand-elevated border border-brand-border text-white text-xs p-2 rounded pointer-events-none whitespace-nowrap z-10 shadow-lg">
+                                {data.label} {isDaily ? '' : data.date.getFullYear()}: ₹{data.value.toLocaleString()}
                               </div>
                               <div
                                 className="w-full bg-brand-primary/20 rounded-t-lg group-hover:bg-brand-primary transition-all duration-300 relative overflow-hidden"
@@ -183,8 +324,9 @@ export default function AdminDashboard() {
                         })}
                       </div>
                       <div className="flex justify-between mt-6 text-[8px] lg:text-[9px] text-gray-500 font-black uppercase tracking-[0.5em]">
-                        {last6Months.map((data, i) => (
-                          <span key={i}>{data.month}</span>
+                        {chartData.map((data, i) => (
+                          // Adaptive Label Hiding: Show max 12 labels approx
+                          (chartData.length <= 12 || i % Math.ceil(chartData.length / 12) === 0) ? <span key={i}>{data.label}</span> : <span key={i}></span>
                         ))}
                       </div>
                     </>
@@ -302,7 +444,17 @@ export default function AdminDashboard() {
 
           {activeTab === 'inventory' && (
             <div className="space-y-8 relative z-10">
-              <div className="flex flex-col md:flex-row gap-5 mb-10">
+              <div className="flex flex-col md:flex-row gap-5 mb-10 justify-between items-center">
+                <div className="relative w-full md:w-96">
+                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">search</span>
+                  <input
+                    type="text"
+                    placeholder="Search products..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-black/40 border border-brand-border rounded-xl pl-12 pr-4 py-4 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
+                  />
+                </div>
                 <button
                   onClick={() => { setEditingProduct(null); setIsAddProductOpen(true); }}
                   className="bg-cta-gradient hover:brightness-110 transition-all text-white px-10 py-5 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-3 w-full md:w-auto text-center cursor-pointer active:scale-95 shadow-lg"
@@ -312,7 +464,7 @@ export default function AdminDashboard() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {allProducts.map(p => (
+                {filteredProducts.map(p => (
                   <div key={p.id} className="bg-brand-card border border-brand-border rounded-[2.5rem] p-8 shadow-xl group hover:border-brand-primary/50 transition-all">
                     <div
                       onClick={() => setSelectedProduct(p)}
@@ -324,6 +476,17 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     <h3 className="text-white font-bold tracking-tight mb-2 truncate">{p.name}</h3>
+                    <div className="flex gap-2 mb-2 flex-wrap">
+                      <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${p.status === 'AVAILABLE' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                        p.status === 'RENTED' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                          'bg-red-500/10 text-red-500 border-red-500/20'
+                        }`}>{p.status || 'AVAILABLE'}</span>
+                      {p.deposit && (
+                        <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase bg-white/5 text-gray-400 border border-white/10">
+                          Dep: ₹{p.deposit.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex gap-4 mt-6">
                       <button onClick={() => { setEditingProduct(p); setIsAddProductOpen(true); }} className="flex-1 bg-white/5 hover:bg-white/10 py-4 lg:py-3 rounded-xl text-[9px] font-black uppercase text-gray-400 hover:text-white transition-all cursor-pointer min-h-[44px] flex items-center justify-center">Edit</button>
                       <button onClick={() => { if (confirm(`Delete ${p.name}?`)) deleteProduct(p.id); }} className="flex-1 bg-white/5 hover:bg-red-500/20 py-4 lg:py-3 rounded-xl text-[9px] font-black uppercase text-red-400/50 hover:text-red-400 transition-all cursor-pointer min-h-[44px] flex items-center justify-center">Delete</button>
@@ -378,6 +541,13 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="px-6 py-6 text-right flex justify-end gap-2">
+                          <button
+                            onClick={() => setViewingUser(u)}
+                            className="bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg text-gray-400 hover:text-white transition-all border border-brand-border"
+                            title="View Profile"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">visibility</span>
+                          </button>
                           {u.kycStatus === 'pending' && (
                             <button
                               onClick={() => {
@@ -490,109 +660,209 @@ export default function AdminDashboard() {
       </div>
 
       {/* Product Modal */}
-      {selectedProduct && (
-        <QuickViewModal
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          onNavigateToProduct={handleNavigateToProduct}
-        />
-      )}
+      {
+        selectedProduct && (
+          <QuickViewModal
+            product={selectedProduct}
+            onClose={() => setSelectedProduct(null)}
+            onNavigateToProduct={handleNavigateToProduct}
+          />
+        )
+      }
 
       {/* Add Product Modal */}
-      {isAddProductOpen && (
-        <AddProductModal onClose={() => { setIsAddProductOpen(false); setEditingProduct(null); }} productToEdit={editingProduct} />
-      )}
+      {
+        isAddProductOpen && (
+          <AddProductModal onClose={() => { setIsAddProductOpen(false); setEditingProduct(null); }} productToEdit={editingProduct} />
+        )
+      }
 
       {/* KYC Review Modal */}
-      {selectedKYCUser && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedKYCUser(null)} />
-          <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[90vh]">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-2xl font-bold text-white">KYC Verification</h3>
-                <p className="text-sm text-gray-500 mt-1">Review documents for <span className="text-white font-bold">{selectedKYCUser.name}</span></p>
+      {
+        selectedKYCUser && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedKYCUser(null)} />
+            <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[90vh]">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="text-2xl font-bold text-white">KYC Verification</h3>
+                  <p className="text-sm text-gray-500 mt-1">Review documents for <span className="text-white font-bold">{selectedKYCUser.name}</span></p>
+                </div>
+                <button onClick={() => setSelectedKYCUser(null)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-all">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
               </div>
-              <button onClick={() => setSelectedKYCUser(null)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-all">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-              <div className="bg-black/40 rounded-xl p-4 border border-white/10">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Front Side</p>
-                {selectedKYCUser.kycDocuments?.front ? (
-                  <img
-                    src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.front}`}
-                    className="w-full h-auto rounded-lg"
-                    alt="ID Front"
-                  />
-                ) : (
-                  <div className="h-48 flex items-center justify-center text-gray-600 italic">No document uploaded</div>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <div className="bg-black/40 rounded-xl p-4 border border-white/10">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Front Side</p>
+                  {selectedKYCUser.kycDocuments?.front ? (
+                    <img
+                      src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.front}`}
+                      className="w-full h-auto rounded-lg cursor-zoom-in hover:brightness-110 transition-all"
+                      alt="ID Front"
+                      onClick={() => setZoomedImage(`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.front}`)}
+                    />
+                  ) : (
+                    <div className="h-48 flex items-center justify-center text-gray-600 italic">No document uploaded</div>
+                  )}
+                </div>
+                <div className="bg-black/40 rounded-xl p-4 border border-white/10">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Back Side</p>
+                  {selectedKYCUser.kycDocuments?.back ? (
+                    <img
+                      src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.back}`}
+                      className="w-full h-auto rounded-lg cursor-zoom-in hover:brightness-110 transition-all"
+                      alt="ID Back"
+                      onClick={() => setZoomedImage(`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.back}`)}
+                    />
+                  ) : (
+                    <div className="h-48 flex items-center justify-center text-gray-600 italic">No document uploaded</div>
+                  )}
+                </div>
               </div>
-              <div className="bg-black/40 rounded-xl p-4 border border-white/10">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Back Side</p>
-                {selectedKYCUser.kycDocuments?.back ? (
-                  <img
-                    src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.back}`}
-                    className="w-full h-auto rounded-lg"
-                    alt="ID Back"
-                  />
-                ) : (
-                  <div className="h-48 flex items-center justify-center text-gray-600 italic">No document uploaded</div>
-                )}
-              </div>
-            </div>
 
-            <div className="flex flex-col gap-4 border-t border-white/5 pt-6">
-              {/* Rejection Input - only show if not already approved */}
-              <div className="flex flex-col gap-2">
-                <label className="text-gray-400 text-xs font-bold uppercase tracking-widest">Action</label>
-                <div className="flex gap-4">
-                  <input
-                    type="text"
-                    id="rejectionReason"
-                    placeholder="Reason for rejection (required for reject)"
-                    className="flex-1 bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-500/50 transition-all placeholder:text-gray-600"
-                  />
-                  <button
-                    onClick={() => {
-                      const reasonInput = document.getElementById('rejectionReason') as HTMLInputElement;
-                      const reason = reasonInput.value;
+              <div className="flex flex-col gap-4 border-t border-white/5 pt-6">
+                {/* Rejection Input - only show if not already approved */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-gray-400 text-xs font-bold uppercase tracking-widest">Action</label>
+                  <div className="flex gap-4">
+                    <input
+                      type="text"
+                      id="rejectionReason"
+                      placeholder="Reason for rejection (required for reject)"
+                      className="flex-1 bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-500/50 transition-all placeholder:text-gray-600"
+                    />
+                    <button
+                      onClick={() => {
+                        const reasonInput = document.getElementById('rejectionReason') as HTMLInputElement;
+                        const reason = reasonInput.value;
 
-                      if (!reason) {
-                        alert("Please provide a reason for rejection.");
-                        return;
-                      }
+                        if (!reason) {
+                          alert("Please provide a reason for rejection.");
+                          return;
+                        }
 
-                      if (confirm("Confirm Rejection with reason: " + reason + "?")) {
-                        updateKYCStatus(selectedKYCUser.id, 'rejected', undefined, reason);
-                        setSelectedKYCUser(null);
-                      }
-                    }}
-                    className="bg-red-500/10 text-red-500 hover:bg-red-500/20 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap"
-                  >
-                    Reject
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (confirm("Confirm Approval?")) {
-                        const result = await updateKYCStatus(selectedKYCUser.id, 'approved');
-                        if (result) alert(result);
-                        setSelectedKYCUser(null);
-                      }
-                    }}
-                    className="bg-green-500 text-white hover:bg-green-600 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-glow whitespace-nowrap"
-                  >
-                    Approve
-                  </button>
+                        if (confirm("Confirm Rejection with reason: " + reason + "?")) {
+                          updateKYCStatus(selectedKYCUser.id, 'rejected', undefined, reason);
+                          setSelectedKYCUser(null);
+                        }
+                      }}
+                      className="bg-red-500/10 text-red-500 hover:bg-red-500/20 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (confirm("Confirm Approval?")) {
+                          const result = await updateKYCStatus(selectedKYCUser.id, 'approved');
+                          if (result) alert(result);
+                          setSelectedKYCUser(null);
+                        }
+                      }}
+                      className="bg-green-500 text-white hover:bg-green-600 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-glow whitespace-nowrap"
+                    >
+                      Approve
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+
+      {/* User Profile Modal */}
+      {
+        viewingUser && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setViewingUser(null)} />
+            <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[90vh]">
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h2 className="text-2xl font-display font-bold text-white">{viewingUser.name}</h2>
+                  <p className="text-sm text-gray-500">{viewingUser.email}</p>
+                  <div className="flex gap-2 mt-2">
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${viewingUser.role === 'admin' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' : 'bg-blue-500/10 text-blue-500 border-blue-500/20'}`}>
+                      {viewingUser.role}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${viewingUser.kycStatus === 'approved' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-gray-500/10 text-gray-500 border-gray-500/20'}`}>
+                      {viewingUser.kycStatus || 'No KYC'}
+                    </span>
+                  </div>
+                </div>
+                <button onClick={() => setViewingUser(null)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-all">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div className="bg-black/40 rounded-xl p-6 border border-white/5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Total Orders</p>
+                  <p className="text-2xl font-bold text-white">{viewingUser.orders?.length || 0}</p>
+                </div>
+                <div className="bg-black/40 rounded-xl p-6 border border-white/5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Total Spend</p>
+                  <p className="text-2xl font-bold text-brand-primary">₹{(viewingUser.orders?.filter(o => o.status !== 'Returned').reduce((acc, o) => acc + o.total, 0) || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-black/40 rounded-xl p-6 border border-white/5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Active Rentals</p>
+                  <p className="text-2xl font-bold text-white">{viewingUser.orders?.filter(o => o.status === 'Active Rental' || o.status === 'In Use').length || 0}</p>
+                </div>
+              </div>
+
+              {/* Order History */}
+              <h3 className="text-lg font-bold text-white mb-4">Order History</h3>
+              <div className="bg-black/20 rounded-xl overflow-hidden border border-white/5">
+                <table className="w-full text-left">
+                  <thead className="bg-white/5">
+                    <tr className="text-[9px] text-gray-500 font-black uppercase tracking-widest">
+                      <th className="px-6 py-4">ID</th>
+                      <th className="px-6 py-4">Date</th>
+                      <th className="px-6 py-4">Items</th>
+                      <th className="px-6 py-4">Total</th>
+                      <th className="px-6 py-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {viewingUser.orders?.map(order => (
+                      <tr key={order.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4 text-xs font-mono text-gray-400">{order.id}</td>
+                        <td className="px-6 py-4 text-xs text-white">{order.date}</td>
+                        <td className="px-6 py-4 text-xs text-gray-400 max-w-[200px] truncate">
+                          {order.items.map(i => `${i.name} (x${i.quantity})`).join(', ')}
+                        </td>
+                        <td className="px-6 py-4 text-xs font-bold text-white">₹{order.total.toLocaleString()}</td>
+                        <td className="px-6 py-4">
+                          <span className="px-2 py-1 rounded-full bg-white/10 text-[9px] font-bold uppercase tracking-wider text-gray-300">
+                            {order.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {(!viewingUser.orders || viewingUser.orders.length === 0) && (
+                      <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No orders found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Image Zoom Modal */}
+      {
+        zoomedImage && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in duration-300" onClick={() => setZoomedImage(null)}>
+            <button className="absolute top-8 right-8 text-white/50 hover:text-white transition-all">
+              <span className="material-symbols-outlined text-4xl">close</span>
+            </button>
+            <img src={zoomedImage} className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl" alt="Zoomed View" />
+          </div>
+        )
+      }
+    </div >
   );
 }
