@@ -47,8 +47,14 @@ export default function AuthModal() {
       setError(res.message);
     } else {
       // Success handling with redirection
-      if (mode === 'signup') {
+      if ((res as any).role === 'admin') {
+        const event = new CustomEvent('navigate', { detail: { view: 'dashboard' } });
+        window.dispatchEvent(event);
+      } else if (mode === 'signup') {
         const event = new CustomEvent('navigate', { detail: { view: 'kyc' } });
+        window.dispatchEvent(event);
+      } else {
+        const event = new CustomEvent('navigate', { detail: { view: 'home' } });
         window.dispatchEvent(event);
       }
     }
@@ -63,8 +69,13 @@ export default function AuthModal() {
       setError(res.message);
     } else {
       // Success handling with redirection to home
-      const event = new CustomEvent('navigate', { detail: { view: 'home' } });
-      window.dispatchEvent(event);
+      if (res.role === 'admin') {
+        const event = new CustomEvent('navigate', { detail: { view: 'dashboard' } });
+        window.dispatchEvent(event);
+      } else {
+        const event = new CustomEvent('navigate', { detail: { view: 'home' } });
+        window.dispatchEvent(event);
+      }
     }
     setLoading(false);
   };

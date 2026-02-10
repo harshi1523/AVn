@@ -25,11 +25,15 @@ export default function AdminDashboard() {
   // Aggregate all orders from all users for Admin
   const allOrders = allUsers.flatMap(user => user.orders || []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  // Aggregate all tickets from all users
   const allTickets = allUsers.flatMap(user => user.tickets || []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+  // Calculate Total Revenue from Completed orders
+  const calculatedRevenue = allOrders
+    .filter(o => o.status === 'Completed' || o.status === 'Delivered')
+    .reduce((acc, order) => acc + (order.total || 0), 0);
+
   const stats = [
-    { label: 'Total Revenue', value: `₹${(finance.totalRevenue / 1000000).toFixed(1)}M`, icon: 'payments' },
+    { label: 'Total Revenue', value: `₹${(calculatedRevenue / 1000000).toFixed(2)}M`, icon: 'payments' },
     { label: 'Growth', value: `+${finance.monthlyGrowth}%`, icon: 'trending_up' },
     { label: 'Active Rentals', value: allOrders.filter(o => o.status === 'Active Rental' || o.status === 'In Use').length, icon: 'laptop_mac' },
     { label: 'Support Tickets', value: allTickets.filter(t => t.status !== 'Resolved').length, icon: 'contact_support' },
@@ -122,26 +126,70 @@ export default function AdminDashboard() {
             <div className="space-y-8 lg:space-y-10">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
                 {stats.map((stat, i) => (
-                  <div key={i} className="bg-brand-card border border-brand-border p-6 lg:p-8 rounded-[2rem] lg:rounded-[2.5rem] shadow-xl">
+                  <div key={i} className="bg-brand-card border border-brand-border p-6 lg:p-8 rounded-[2rem] lg:rounded-[2.5rem] shadow-xl" data-testid={`stat-card-${stat.label.toLowerCase().replace(/\s+/g, '-')}`}>
                     <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-6 text-white border border-white/5">
                       <span className="material-symbols-outlined text-[20px] lg:text-[22px]">{stat.icon}</span>
                     </div>
                     <p className="text-[9px] lg:text-[10px] text-gray-500 font-black uppercase tracking-[0.4em] mb-2">{stat.label}</p>
-                    <p className="text-2xl lg:text-3xl font-display font-bold text-white tracking-tighter">{stat.value}</p>
+                    <p className="text-2xl lg:text-3xl font-display font-bold text-white tracking-tighter" data-testid={`stat-value-${stat.label.toLowerCase().replace(/\s+/g, '-')}`}>{stat.value}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="bg-brand-card border border-brand-border rounded-[2rem] lg:rounded-[3rem] p-6 lg:p-12 shadow-2xl">
-                <h3 className="text-xl lg:text-2xl font-display font-bold text-white mb-8 lg:mb-12">Sales Growth</h3>
-                <div className="h-56 lg:h-72 flex items-end justify-between gap-2 lg:gap-5 border-b border-white/10 pb-6">
-                  {[60, 45, 80, 55, 95, 70, 85, 100, 40, 90, 65, 75].map((h, i) => (
-                    <div key={i} className="flex-1 bg-brand-primary/20 rounded-t-lg hover:bg-brand-primary transition-all duration-300" style={{ height: `${h}%` }}></div>
-                  ))}
-                </div>
-                <div className="flex justify-between mt-6 text-[8px] lg:text-[9px] text-gray-500 font-black uppercase tracking-[0.5em]">
-                  <span>Jan</span><span>Apr</span><span>Jul</span><span>Dec</span>
-                </div>
+              <div className="bg-brand-card border border-brand-border rounded-[2rem] lg:rounded-[3rem] p-6 lg:p-12 shadow-2xl" data-testid="sales-chart-container">
+                <h3 className="text-xl lg:text-2xl font-display font-bold text-white mb-8 lg:mb-12">Sales Growth (Last 6 Months)</h3>
+
+                {/* Dynamic Sales Graph */}
+                {(() => {
+                  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                  const today = new Date();
+                  const last6Months = Array.from({ length: 6 }, (_, i) => {
+                    const d = new Date(today.getFullYear(), today.getMonth() - 5 + i, 1);
+                    return { month: months[d.getMonth()], year: d.getFullYear(), value: 0 };
+                  });
+
+                  // Aggregate data
+                  allOrders.forEach(order => {
+                    if (order.status === 'Completed' || order.status === 'Delivered') {
+                      const orderDate = new Date(order.date);
+                      const monthIndex = last6Months.findIndex(m => m.month === months[orderDate.getMonth()] && m.year === orderDate.getFullYear());
+                      if (monthIndex !== -1) {
+                        last6Months[monthIndex].value += order.total;
+                      }
+                    }
+                  });
+
+                  const maxValue = Math.max(...last6Months.map(d => d.value), 1000); // Minimum 1000 to avoid division by zero
+
+                  return (
+                    <>
+                      <div className="h-56 lg:h-72 flex items-end justify-between gap-2 lg:gap-5 border-b border-white/10 pb-6">
+                        {last6Months.map((data, i) => {
+                          const heightPercentage = Math.max((data.value / maxValue) * 100, 5); // Min 5% height
+                          return (
+                            <div key={i} className="flex-1 flex flex-col items-center group relative">
+                              {/* Tooltip */}
+                              <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-brand-elevated border border-brand-border text-white text-xs p-2 rounded pointer-events-none whitespace-nowrap z-10">
+                                {data.month} {data.year}: ₹{data.value.toLocaleString()}
+                              </div>
+                              <div
+                                className="w-full bg-brand-primary/20 rounded-t-lg group-hover:bg-brand-primary transition-all duration-300 relative overflow-hidden"
+                                style={{ height: `${heightPercentage}%` }}
+                              >
+                                <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20"></div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex justify-between mt-6 text-[8px] lg:text-[9px] text-gray-500 font-black uppercase tracking-[0.5em]">
+                        {last6Months.map((data, i) => (
+                          <span key={i}>{data.month}</span>
+                        ))}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -385,9 +433,9 @@ export default function AdminDashboard() {
                         <td className="px-6 py-6 text-gray-400 text-sm">{ticket.date}</td>
                         <td className="px-6 py-6">
                           <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${ticket.status === 'Open' ? 'bg-brand-primary/10 text-brand-primary border-brand-primary/20' :
-                              ticket.status === 'Resolved' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
-                                ticket.status === 'In Progress' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' :
-                                  'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                            ticket.status === 'Resolved' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                              ticket.status === 'In Progress' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' :
+                                'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
                             }`}>
                             {ticket.status}
                           </span>

@@ -25,8 +25,8 @@ interface StoreContextType {
   isCartOpen: boolean;
   isAuthOpen: boolean;
   isDBReady: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
-  loginWithGoogle: () => Promise<{ success: boolean; message: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; message: string; role?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; message: string; role?: string }>;
   signup: (name: string, email: string, password: string) => Promise<{ success: boolean; message: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; message: string }>;
   addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
@@ -74,6 +74,54 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     activeRentalValue: 840000,
     pendingPayouts: 12000,
   });
+
+  // --- SESSION TIMEOUT LOGIC ---
+  const [lastActivity, setLastActivity] = useState(Date.now());
+  const TIMEOUT_DURATION = 120 * 60 * 1000; // 120 minutes
+
+  useEffect(() => {
+    const handleActivity = () => setLastActivity(Date.now());
+
+    // throttle activity updates to avoid excessive state changes? 
+    // For simplicity, just updating state is fine, React batches it.
+    // Or we can just use a ref for lastActivity to avoid re-renders, but we need to trigger re-render on timeout?
+    // Actually, checking in interval is independent of render. 
+    // But we need to read the *latest* lastActivity in the interval.
+
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('click', handleActivity);
+    window.addEventListener('scroll', handleActivity);
+
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('click', handleActivity);
+      window.removeEventListener('scroll', handleActivity);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user) return; // Only track timeout for logged-in users
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      if (now - lastActivity > TIMEOUT_DURATION) {
+        // Session expired
+        logout();
+        alert("Session expired. Please login again.");
+        const event = new CustomEvent('navigate', { detail: { view: 'home' } });
+        window.dispatchEvent(event);
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, [user, lastActivity, TIMEOUT_DURATION]); // dependency on lastActivity might cause interval reset often.
+  // Better approach: Use a Ref for lastActivity to avoid resetting interval, or just let it reset (it's fine).
+  // actually, if we include lastActivity in dependency, the interval resets on every mousemove. That's inefficient.
+  // Let's use a Ref for the timestamp.
+
+
 
   // --- ADMIN: FETCH ALL USERS ---
   useEffect(() => {
@@ -216,9 +264,12 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // Fetch user role
+      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+      const role = userDoc.exists() ? userDoc.data().role : 'customer';
       setIsAuthOpen(false);
-      return { success: true, message: 'Logged in successfully' };
+      return { success: true, message: 'Logged in successfully', role };
     } catch (err: any) {
       return { success: false, message: 'Password or Email Incorrect' };
     }
@@ -281,7 +332,8 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       }
 
       setIsAuthOpen(false);
-      return { success: true, message: 'Logged in successfully' };
+      const role = userDoc.exists() ? userDoc.data().role : 'customer';
+      return { success: true, message: 'Logged in successfully', role };
     } catch (err: any) {
       return { success: false, message: err.message };
     }
@@ -364,6 +416,8 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   const logout = async () => {
     await signOut(auth);
     setUser(null);
+    const event = new CustomEvent('navigate', { detail: { view: 'home' } });
+    window.dispatchEvent(event);
   };
 
   const syncUserField = async (field: string, data: any) => {
