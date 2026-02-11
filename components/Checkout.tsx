@@ -8,9 +8,10 @@ interface CheckoutProps {
 }
 
 export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
-    const { cart, removeFromCart, placeOrder, user, addAddress, savePendingCheckout } = useStore();
+    const { cart, removeFromCart, placeOrder, user, addAddress, removeAddress, savePendingCheckout } = useStore();
     const [selectedAddress, setSelectedAddress] = useState<string>('');
     const [paymentMethod, setPaymentMethod] = useState<'card' | 'net' | 'upi'>('card');
+    const [upiId, setUpiId] = useState<string>('');  // NEW: UPI ID state
     const [isProcessing, setIsProcessing] = useState(false);
     const [showAddressForm, setShowAddressForm] = useState(false);
 
@@ -19,7 +20,7 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
 
     const addresses = user?.addresses || [];
 
-    // Automatically show address form for users with no addresses
+    // Auto-select default address or first address
     useEffect(() => {
         if (addresses.length === 0) {
             setShowAddressForm(true);
@@ -28,6 +29,27 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
             setSelectedAddress(defaultAddr.id);
         }
     }, [addresses.length]);
+
+    // Auto-select payment method and pre-fill UPI ID from preferences
+    useEffect(() => {
+        if (user?.rentalPreferences) {
+            const { depositMethod, upiId: savedUpiId } = user.rentalPreferences;
+
+            // Map depositMethod to paymentMethod
+            if (depositMethod === 'upi') {
+                setPaymentMethod('upi');
+            } else if (depositMethod === 'net_banking') {
+                setPaymentMethod('net');
+            } else if (depositMethod === 'card') {
+                setPaymentMethod('card');
+            }
+
+            // Pre-fill UPI ID if available
+            if (savedUpiId) {
+                setUpiId(savedUpiId);
+            }
+        }
+    }, [user?.rentalPreferences]);
 
     if (cart.length === 0) return (
         <div className="min-h-screen bg-[#F3F4F6] flex flex-col items-center justify-center p-8">
@@ -127,7 +149,7 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
         setIsProcessing(true);
 
         setTimeout(() => {
-            placeOrder(deliveryAddress, totalToday, rentalDetails);
+            placeOrder(deliveryAddress, paymentMethod, totalToday, rentalDetails);
             setIsProcessing(false);
             onSuccess(containsRental);
         }, 1200);
@@ -302,6 +324,7 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                                 </div>
                             ) : (
                                 addresses.map((addr) => {
+                                    if (!addr || !addr.id) return null; // Safety check
                                     const isSelected = selectedAddress === addr.id;
                                     return (
                                         <div
@@ -314,22 +337,61 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                                             </div>
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2 mb-2">
-                                                    <h4 className="font-bold text-gray-900">{addr.label}</h4>
+                                                    <h4 className="font-bold text-gray-900">{addr.label || 'Details'}</h4>
                                                     {addr.isDefault && (
                                                         <span className="bg-gray-100 text-gray-400 text-[9px] font-bold px-2 py-0.5 rounded uppercase">Default</span>
                                                     )}
                                                 </div>
-                                                <p className="text-gray-500 text-sm leading-relaxed">{addr.address}</p>
-                                                <p className="text-gray-500 text-sm">{addr.city}</p>
+                                                {addr.recipientName && (
+                                                    <p className="text-gray-700 text-sm font-semibold mb-1">{addr.recipientName}</p>
+                                                )}
+                                                <p className="text-gray-500 text-sm leading-relaxed">{addr.address || ''}</p>
+                                                <p className="text-gray-500 text-sm">{addr.city || ''}{addr.state ? `, ${addr.state}` : ''}{addr.pincode ? ` - ${addr.pincode}` : ''}</p>
                                             </div>
-                                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'border-brand-primary' : 'border-gray-200'}`}>
-                                                {isSelected && <div className="w-3 h-3 rounded-full bg-brand-primary"></div>}
+                                            <div className="flex flex-col gap-2">
+                                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'border-brand-primary' : 'border-gray-200'}`}>
+                                                    {isSelected && <div className="w-3 h-3 rounded-full bg-brand-primary" />}
+                                                </div>
+                                                <button
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        if (addr.isDefault) {
+                                                            alert("Cannot delete the default address. Please set another address as default first.");
+                                                            return;
+                                                        }
+                                                        if (confirm("Are you sure you want to delete this address?")) {
+                                                            try {
+                                                                await removeAddress(addr.id);
+                                                                if (selectedAddress === addr.id) {
+                                                                    setSelectedAddress('');
+                                                                }
+                                                            } catch (err: any) {
+                                                                alert(err.message || "Failed to delete address");
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
+                                                    title="Delete Address"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                </button>
                                             </div>
                                         </div>
                                     );
                                 })
                             )}
                         </div>
+
+                        {/* Add Address Trigger */}
+                        {!showAddressForm && (
+                            <button
+                                onClick={() => setShowAddressForm(true)}
+                                className="w-full py-4 border-2 border-dashed border-gray-300 rounded-[2rem] text-gray-400 font-bold uppercase tracking-widest text-[10px] hover:border-brand-primary hover:text-brand-primary transition-all flex items-center justify-center gap-2"
+                            >
+                                <span className="material-symbols-outlined">add</span>
+                                Add New Address
+                            </button>
+                        )}
                     </section>
                 )}
 
@@ -410,6 +472,6 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

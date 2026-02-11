@@ -37,8 +37,11 @@ interface StoreContextType {
   addToCart: (productId: string, type: 'rent' | 'buy', tenure?: number, variants?: CartItem['variants'], warranty?: CartItem['warranty']) => void;
   updateQuantity: (cartItemId: string, delta: number) => void;
   removeFromCart: (cartItemId: string) => void;
-  placeOrder: (address: string, totalOverride?: number, rentalDetails?: { start?: string, end?: string, deposit?: number, method?: 'pickup' | 'delivery' }) => Promise<void>;
+  placeOrder: (address: string, paymentMethod: string, totalOverride?: number, rentalDetails?: { start?: string, end?: string, deposit?: number, method?: 'pickup' | 'delivery' }) => Promise<void>;
   addTicket: (subject: string, description: string) => Promise<void>;
+  addTicketMessage: (ticketId: string, message: string, updateStatus?: Ticket['status']) => Promise<void>;
+  updateTicketPriority: (ticketId: string, priority: Ticket['priority']) => Promise<void>;
+  assignTicket: (ticketId: string, adminId: string, adminName: string) => Promise<void>;
   toggleWishlist: (productId: string) => Promise<void>;
   toggleCart: (isOpen: boolean) => void;
   toggleAuth: (isOpen: boolean) => void;
@@ -49,6 +52,8 @@ interface StoreContextType {
   updateRentalPreferences: (prefs: User['rentalPreferences']) => Promise<void>;
   dismissNotification: (id: string) => void;
   addAddress: (address: Omit<Address, 'id'>) => Promise<void>;
+  updateAddress: (id: string, updates: Partial<Address>) => Promise<void>;
+  setDefaultAddress: (id: string) => Promise<void>;
   removeAddress: (id: string) => Promise<void>;
   savePendingCheckout: (details: User['pendingCheckout']) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -501,7 +506,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     await syncUserField('cart', updatedCart);
   };
 
-  const placeOrder = async (address: string, totalOverride?: number, rentalDetails?: { start?: string, end?: string, deposit?: number, method?: 'pickup' | 'delivery' }) => {
+  const placeOrder = async (address: string, paymentMethod: string, totalOverride?: number, rentalDetails?: { start?: string, end?: string, deposit?: number, method?: 'pickup' | 'delivery' }) => {
     if (!user) return;
     const finalTotal = totalOverride || cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     const newOrder: Order = {
@@ -549,6 +554,28 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     }).then(() => console.log("✅ Order successfully written to Firestore"))
       .catch(err => console.error("❌ Error writing order to Firestore:", err));
 
+    // Create Financial Record
+    const financialRecord = {
+      id: newOrder.id,
+      orderId: newOrder.id,
+      userId: user.id,
+      userName: user.name,
+      amount: newOrder.total,
+      type: 'income',
+      date: newOrder.date,
+      timestamp: new Date().toISOString(),
+      paymentMethod: paymentMethod,
+      status: 'success',
+      items: newOrder.items.map(i => ({ name: i.name, quantity: i.quantity, price: i.price }))
+    };
+
+    try {
+      await setDoc(doc(db, 'financials', newOrder.id), financialRecord);
+      console.log("✅ Financial record created for Order:", newOrder.id);
+    } catch (err) {
+      console.error("❌ Error creating financial record:", err);
+    }
+
     setOrders(updatedOrders); // Optimistic update
     setCart([]); // Clear local cart immediately
     generateAIEmail(newOrder, 'new');
@@ -556,9 +583,114 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
   const addTicket = async (subject: string, description: string) => {
     if (!user) return;
-    const newTicket: Ticket = { id: `TIC-${Math.floor(Math.random() * 1000)}`, subject, description, status: 'Open', date: new Date().toISOString().split('T')[0], userName: user.name };
+
+    const timestamp = new Date().toISOString();
+    const initialMessage: any = {
+      id: Math.random().toString(36).substr(2, 9),
+      senderId: user.id,
+      senderName: user.name,
+      senderRole: 'user',
+      message: description,
+      timestamp: timestamp,
+    };
+
+    const newTicket: Ticket = {
+      id: `TIC-${Math.floor(Math.random() * 10000)}`,
+      userId: user.id,
+      subject,
+      description,
+      status: 'Open',
+      priority: 'Medium',
+      date: new Date().toISOString().split('T')[0],
+      lastUpdated: timestamp,
+      userName: user.name,
+      customerEmail: user.email,
+      messages: [initialMessage],
+    };
+
     const updatedTickets = [newTicket, ...tickets];
     await syncUserField('tickets', updatedTickets);
+  };
+
+  const addTicketMessage = async (ticketId: string, message: string, updateStatus?: Ticket['status']) => {
+    if (!user) return;
+
+    const timestamp = new Date().toISOString();
+    const newMessage: any = {
+      id: Math.random().toString(36).substr(2, 9),
+      senderId: user.id,
+      senderName: user.name,
+      senderRole: user.role || 'admin',
+      message: message,
+      timestamp: timestamp,
+    };
+
+    // Find the ticket owner and update their ticket
+    for (const targetUser of allUsers) {
+      const ticketIndex = targetUser.tickets?.findIndex(t => t.id === ticketId);
+      if (ticketIndex !== undefined && ticketIndex >= 0 && targetUser.tickets) {
+        const updatedTicket = {
+          ...targetUser.tickets[ticketIndex],
+          messages: [...targetUser.tickets[ticketIndex].messages, newMessage],
+          lastUpdated: timestamp,
+          ...(updateStatus && { status: updateStatus }),
+        };
+
+        const updatedTickets = [...targetUser.tickets];
+        updatedTickets[ticketIndex] = updatedTicket;
+
+        const userDocRef = doc(db, 'users', targetUser.id);
+        await updateDoc(userDocRef, { tickets: updatedTickets });
+        break;
+      }
+    }
+  };
+
+  const updateTicketPriority = async (ticketId: string, priority: Ticket['priority']) => {
+    if (!user) return;
+
+    // Find the ticket owner and update priority
+    for (const targetUser of allUsers) {
+      const ticketIndex = targetUser.tickets?.findIndex(t => t.id === ticketId);
+      if (ticketIndex !== undefined && ticketIndex >= 0 && targetUser.tickets) {
+        const updatedTicket = {
+          ...targetUser.tickets[ticketIndex],
+          priority: priority,
+          lastUpdated: new Date().toISOString(),
+        };
+
+        const updatedTickets = [...targetUser.tickets];
+        updatedTickets[ticketIndex] = updatedTicket;
+
+        const userDocRef = doc(db, 'users', targetUser.id);
+        await updateDoc(userDocRef, { tickets: updatedTickets });
+        break;
+      }
+    }
+  };
+
+  const assignTicket = async (ticketId: string, adminId: string, adminName: string) => {
+    if (!user) return;
+
+    // Find the ticket owner and assign admin
+    for (const targetUser of allUsers) {
+      const ticketIndex = targetUser.tickets?.findIndex(t => t.id === ticketId);
+      if (ticketIndex !== undefined && ticketIndex >= 0 && targetUser.tickets) {
+        const updatedTicket = {
+          ...targetUser.tickets[ticketIndex],
+          assignedTo: adminId,
+          assignedToName: adminName,
+          lastUpdated: new Date().toISOString(),
+        };
+
+        const updatedTickets = [...targetUser.tickets];
+        updatedTickets[ticketIndex] = updatedTicket;
+
+        const userDocRef = doc(db, 'users', targetUser.id);
+        await updateDoc(userDocRef, { tickets: updatedTickets });
+        break;
+      }
+    }
   };
 
   const toggleWishlist = async (productId: string) => {
@@ -571,14 +703,47 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
   const addAddress = async (addr: Omit<Address, 'id'>) => {
     if (!user) return;
-    const newAddr: Address = { ...addr, id: Math.random().toString(36).substr(2, 9) };
+    const newAddr: Address = {
+      ...addr,
+      id: Math.random().toString(36).substr(2, 9),
+      // Auto-set as default if this is the first address
+      isDefault: (user.addresses || []).length === 0 ? true : (addr.isDefault || false)
+    };
     const updatedAddresses = [...(user.addresses || []), newAddr];
+    const userDocRef = doc(db, 'users', user.id);
+    await updateDoc(userDocRef, { addresses: updatedAddresses });
+  };
+
+
+  const updateAddress = async (id: string, updates: Partial<Address>) => {
+    if (!user) return;
+    const updatedAddresses = (user.addresses || []).map(a =>
+      a.id === id ? { ...a, ...updates } : a
+    );
+    const userDocRef = doc(db, 'users', user.id);
+    await updateDoc(userDocRef, { addresses: updatedAddresses });
+  };
+
+  const setDefaultAddress = async (id: string) => {
+    if (!user) return;
+    // Set selected address as default, unset others
+    const updatedAddresses = (user.addresses || []).map(a => ({
+      ...a,
+      isDefault: a.id === id
+    }));
     const userDocRef = doc(db, 'users', user.id);
     await updateDoc(userDocRef, { addresses: updatedAddresses });
   };
 
   const removeAddress = async (id: string) => {
     if (!user) return;
+
+    // Check if trying to delete default address
+    const addressToDelete = user.addresses?.find(a => a.id === id);
+    if (addressToDelete?.isDefault && (user.addresses || []).length > 1) {
+      throw new Error('Cannot delete default address. Please set another address as default first.');
+    }
+
     const updatedAddresses = (user.addresses || []).filter(a => a.id !== id);
     const userDocRef = doc(db, 'users', user.id);
     await updateDoc(userDocRef, { addresses: updatedAddresses });
@@ -672,6 +837,14 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   const updateKYCStatus = async (userId: string, status: User['kycStatus'], documents?: User['kycDocuments'], reason?: string) => {
     const userDocRef = doc(db, 'users', userId);
 
+    // Fetch current user data to get existing history
+    const targetUserSnap = await getDoc(userDocRef);
+    if (!targetUserSnap.exists()) {
+      console.error("User not found:", userId);
+      return;
+    }
+    const targetUser = targetUserSnap.data() as User;
+
     // Create update object
     const updateData: any = { kycStatus: status };
     if (documents) updateData.kycDocuments = documents;
@@ -684,64 +857,80 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
     if (reason) updateData.kycRejectionReason = reason;
 
+    // --- KYC HISTORY TRACKING ---
+    const historyEntry: any = {
+      id: Math.random().toString(36).substr(2, 9),
+      action: status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'submitted',
+      status: status || 'pending',
+      timestamp: new Date().toISOString(),
+    };
+
+    // Add admin details for approval/rejection
+    if (status === 'approved' || status === 'rejected') {
+      if (user?.id) {
+        historyEntry.adminId = user.id;
+        historyEntry.adminName = user.name;
+      }
+    }
+
+    // Add rejection reason to history
+    if (reason) {
+      historyEntry.reason = reason;
+    }
+
+    // Archive document references in history
+    if (targetUser.kycDocuments) {
+      historyEntry.documents = { ...targetUser.kycDocuments };
+    }
+
+    // Initialize or append to history
+    const existingHistory = targetUser.kycHistory || [];
+    updateData.kycHistory = [...existingHistory, historyEntry];
+
     // --- AUTOMATIC ORDER PLACEMENT LOGIC ---
     // If Admin is approving, check for pending checkout in the TARGET user's data
     if (status === 'approved') {
       updateData.kycVerifiedDate = new Date().toISOString(); // Set verification date
       try {
-        const targetUserSnap = await getDoc(userDocRef);
-        if (targetUserSnap.exists()) {
-          const targetUser = targetUserSnap.data() as User;
 
-          if (targetUser.pendingCheckout && targetUser.pendingCheckout.items && targetUser.pendingCheckout.items.length > 0) {
-            console.log("Found pending checkout for user. Auto-placing order...");
+        if (targetUser.pendingCheckout && targetUser.pendingCheckout.items && targetUser.pendingCheckout.items.length > 0) {
+          console.log("Found pending checkout for user. Auto-placing order...");
 
-            const no = targetUser.pendingCheckout;
-            const newOrder: Order = {
-              id: `ORD-${Math.floor(Math.random() * 10000)}`,
-              date: new Date().toISOString().split('T')[0],
-              userId: targetUser.id,
-              userName: targetUser.name,
-              userEmail: targetUser.email,
-              items: [...no.items],
-              total: no.total,
-              status: 'Placed',
-              address: no.address,
-              ...(no.rentalDetails ? {
-                rentalStartDate: no.rentalDetails.start,
-                rentalEndDate: no.rentalDetails.end,
-                depositAmount: no.rentalDetails.deposit,
-                deliveryMethod: no.rentalDetails.method
-              } : {})
-            };
+          const no = targetUser.pendingCheckout;
+          const newOrder: Order = {
+            id: `ORD-${Math.floor(Math.random() * 10000)}`,
+            date: new Date().toISOString().split('T')[0],
+            userId: targetUser.id,
+            userName: targetUser.name,
+            userEmail: targetUser.email,
+            items: [...no.items],
+            total: no.total,
+            status: 'Placed',
+            address: no.address,
+            ...(no.rentalDetails ? {
+              rentalStartDate: no.rentalDetails.start,
+              rentalEndDate: no.rentalDetails.end,
+              depositAmount: no.rentalDetails.deposit,
+              deliveryMethod: no.rentalDetails.method
+            } : {})
+          };
 
-            // Add order to updateData
-            // Note: need to append to existing orders.
-            // Since we are inside 'updateKYCStatus', we can merge this update.
-            // Using arrayUnion for orders is cleaner, but 'cart' needs to be cleared.
-
-            // Generate Invoice Automatically
-            try {
-              console.log("📄 Generating automatic invoice for KYC order...");
-              const invoiceUrl = await createAndUploadInvoice(newOrder, targetUser);
-              newOrder.invoiceUrl = invoiceUrl;
-              console.log("✅ Invoice generated:", invoiceUrl);
-            } catch (invoiceErr) {
-              console.error("⚠️ Failed to generate automatic invoice:", invoiceErr);
-            }
-
-            // We can't use arrayUnion easily with the 'updateData' map mixed with other fields if we want atomic
-            // But we can do:
-            updateData.orders = [...(targetUser.orders || []), newOrder];
-            updateData.cart = []; // Clear cart
-            updateData.pendingCheckout = null; // Clear pending checkout
-
-            // Notify via AI (optional but good)
-            // Note: generateAIEmail uses local 'setNotifications' which is for the CURRENT user (Admin).
-            // We might want to skip that or implement a backend notification later.
-            console.log("Order auto-placed:", newOrder.id);
-            return `Order ID: ${newOrder.id} has been placed successfully.`;
+          // Generate Invoice Automatically
+          try {
+            console.log("📄 Generating automatic invoice for KYC order...");
+            const invoiceUrl = await createAndUploadInvoice(newOrder, targetUser);
+            newOrder.invoiceUrl = invoiceUrl;
+            console.log("✅ Invoice generated:", invoiceUrl);
+          } catch (invoiceErr) {
+            console.error("⚠️ Failed to generate automatic invoice:", invoiceErr);
           }
+
+          updateData.orders = [...(targetUser.orders || []), newOrder];
+          updateData.cart = []; // Clear cart
+          updateData.pendingCheckout = null; // Clear pending checkout
+
+          console.log("Order auto-placed:", newOrder.id);
+          return `Order ID: ${newOrder.id} has been placed successfully.`;
         }
       } catch (err) {
         console.error("Error auto-placing order during KYC approval:", err);
@@ -749,11 +938,12 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     }
 
     await updateDoc(userDocRef, updateData);
+    console.log("✅ KYC Status updated in Firestore for user:", userId, "Status:", status);
 
-    // Optimistic Update for Admin View (Important for KYC Status)
-    setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updateData } : u));
+    // The onSnapshot listener (lines 132-145) will automatically update allUsers
+    // No need for optimistic update here as it can cause race conditions
 
-    // Optimistic update for current user if applicable
+    // Optimistic update for current user if applicable (only if admin is updating their own KYC)
     if (user && user.id === userId) {
       setUser(prev => prev ? { ...prev, ...updateData } : null);
     }
@@ -778,9 +968,9 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   return (
     <StoreContext.Provider value={{
       user, setUser, cart, orders, tickets, wishlist, allUsers, finance, products, notifications, isCartOpen, isAuthOpen, isDBReady,
-      login, loginWithGoogle, signup, logout, resetPassword, addProduct, updateProduct, deleteProduct, addToCart, updateQuantity, removeFromCart, placeOrder, addTicket, toggleWishlist,
+      login, loginWithGoogle, signup, logout, resetPassword, addProduct, updateProduct, deleteProduct, addToCart, updateQuantity, removeFromCart, placeOrder, addTicket, addTicketMessage, updateTicketPriority, assignTicket, toggleWishlist,
       toggleCart: setIsCartOpen, toggleAuth: setIsAuthOpen, updateOrderStatus, updateTicketStatus, updateKYCStatus, updateUserStatus, dismissNotification,
-      addAddress, removeAddress, updateRentalPreferences, savePendingCheckout, refreshProfile
+      addAddress, updateAddress, setDefaultAddress, removeAddress, updateRentalPreferences, savePendingCheckout, refreshProfile
     }}>
       {children}
     </StoreContext.Provider>

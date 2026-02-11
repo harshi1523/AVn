@@ -122,7 +122,24 @@ export default function ProductDetails({ productId, onBack }: ProductDetailsProp
           <button onClick={onBack} className="flex items-center gap-1 text-[9px] font-bold text-white/20 hover:text-white uppercase tracking-widest mb-4">
             <span className="material-symbols-outlined text-sm">chevron_left</span> Back to Catalog
           </button>
+
+          {/* Brand & Category */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-brand-primary font-bold uppercase tracking-widest text-[10px]">{product.brand}</span>
+            <span className="w-1 h-1 rounded-full bg-white/20"></span>
+            <span className="text-white/40 font-bold uppercase tracking-widest text-[10px]">{product.category}</span>
+            {product.status === 'AVAILABLE' && (
+              <span className="ml-2 flex items-center gap-1 text-brand-success text-[10px] font-bold uppercase tracking-widest">
+                <span className="material-symbols-outlined text-sm">check_circle</span> In Stock
+              </span>
+            )}
+          </div>
+
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-2 tracking-tight">{product.name}</h2>
+
+          {/* Subtitle/Description */}
+          <p className="text-lg text-white/60 font-medium mb-4 leading-relaxed">{product.subtitle}</p>
+
           <div className="flex items-center gap-4 mb-6">
             <div className="flex items-center gap-1.5 bg-brand-success text-black px-2 py-0.5 rounded text-[11px] font-bold">{product.rating} <span className="material-symbols-outlined text-[12px] filled-icon">star</span></div>
             <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest">{product.reviews} Ratings</span>

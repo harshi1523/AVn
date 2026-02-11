@@ -1,33 +1,53 @@
 
 import React, { useState } from 'react';
 import { useStore } from '../lib/store';
+import { Address } from '../lib/types';
 
 interface AddressModalProps {
   onClose: () => void;
+  editAddress?: Address;  // For edit mode
+  onSuccess?: (message: string) => void;  // Success callback
 }
 
-export default function AddressModal({ onClose }: AddressModalProps) {
-  const { addAddress } = useStore();
+export default function AddressModal({ onClose, editAddress, onSuccess }: AddressModalProps) {
+  const { addAddress, updateAddress } = useStore();
   const [formData, setFormData] = useState({
-    label: 'Home',
-    address: '',
-    city: '',
-    phone: ''
+    label: editAddress?.label || 'Home',
+    address: editAddress?.address || '',
+    city: editAddress?.city || '',
+    state: editAddress?.state || '',
+    pincode: editAddress?.pincode || '',
+    phone: editAddress?.phone || '',
+    recipientName: editAddress?.recipientName || ''
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.address || !formData.city || !formData.phone) return;
 
-    await addAddress(formData);
-    onClose();
+    try {
+      if (editAddress) {
+        // Edit mode
+        await updateAddress(editAddress.id, formData);
+        onSuccess?.('Address updated successfully!');
+      } else {
+        // Add mode
+        await addAddress(formData);
+        onSuccess?.('Address added successfully!');
+      }
+      onClose();
+    } catch (error: any) {
+      onSuccess?.(error.message || 'Failed to save address');
+    }
   };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
-        <h3 className="text-xl font-bold text-white mb-6">Add Delivery Address</h3>
+        <h3 className="text-xl font-bold text-white mb-6">
+          {editAddress ? 'Edit Address' : 'Add Delivery Address'}
+        </h3>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
@@ -47,6 +67,13 @@ export default function AddressModal({ onClose }: AddressModalProps) {
           </div>
 
           <div className="space-y-4">
+            <input
+              type="text"
+              placeholder="Recipient Name (Optional)"
+              value={formData.recipientName}
+              onChange={e => setFormData({ ...formData, recipientName: e.target.value })}
+              className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-brand-primary transition-all"
+            />
             <input
               type="text"
               placeholder="Full Address (Street, Area)"

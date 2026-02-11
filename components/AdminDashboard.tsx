@@ -7,7 +7,7 @@ import AddProductModal from "./AddProductModal";
 import { generateInvoice } from "../lib/invoice";
 
 export default function AdminDashboard() {
-  const { user, finance, orders, tickets, allUsers, products: allProducts, logout, updateOrderStatus, updateTicketStatus, updateKYCStatus, deleteProduct, updateOrderNotes, updateUserStatus } = useStore();
+  const { user, finance, orders, tickets, allUsers, products: allProducts, logout, updateOrderStatus, updateTicketStatus, updateKYCStatus, deleteProduct, updateOrderNotes, updateUserStatus, addTicketMessage, updateTicketPriority, assignTicket } = useStore();
 
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'orders' | 'users' | 'financials' | 'reports' | 'settings' | 'support'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -23,6 +23,16 @@ export default function AdminDashboard() {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'user' | 'admin'>('all');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectionError, setRejectionError] = useState(false);
+  const [viewingKYCHistory, setViewingKYCHistory] = useState<any>(null);
+
+  // Support Tab State
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [ticketStatusFilter, setTicketStatusFilter] = useState<'All' | 'Open' | 'In Progress' | 'Pending' | 'Resolved'>('All');
+  const [ticketPriorityFilter, setTicketPriorityFilter] = useState<'All' | 'Urgent' | 'High' | 'Medium' | 'Low'>('All');
+  const [ticketSearchTerm, setTicketSearchTerm] = useState('');
+  const [ticketReplyInput, setTicketReplyInput] = useState('');
 
   const handleNavigateToProduct = (id: string) => {
     console.log("Navigating to product:", id);
@@ -1048,6 +1058,208 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {activeTab === 'support' && (() => {
+            // Get all tickets from all users
+            const allTickets = allUsers.flatMap(u =>
+              (u.tickets || []).map(t => ({ ...t, userId: u.id, userName: u.name, customerEmail: u.email }))
+            ).sort((a, b) => new Date(b.lastUpdated || b.date).getTime() - new Date(a.lastUpdated || a.date).getTime());
+
+            // Apply filters
+            let filteredTickets = allTickets;
+            if (ticketStatusFilter !== 'All') {
+              filteredTickets = filteredTickets.filter(t => t.status === ticketStatusFilter);
+            }
+            if (ticketPriorityFilter !== 'All') {
+              filteredTickets = filteredTickets.filter(t => t.priority === ticketPriorityFilter);
+            }
+            if (ticketSearchTerm.trim()) {
+              const search = ticketSearchTerm.toLowerCase();
+              filteredTickets = filteredTickets.filter(t =>
+                t.id.toLowerCase().includes(search) ||
+                t.subject.toLowerCase().includes(search) ||
+                (t.userName || '').toLowerCase().includes(search) ||
+                (t.customerEmail || '').toLowerCase().includes(search)
+              );
+            }
+
+            // Sort by priority (Urgent > High > Medium > Low) then by lastUpdated
+            const priorityOrder = { 'Urgent': 0, 'High': 1, 'Medium': 2, 'Low': 3 };
+            filteredTickets.sort((a, b) => {
+              const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+              if (priorityDiff !== 0) return priorityDiff;
+              return new Date(b.lastUpdated || b.date).getTime() - new Date(a.lastUpdated || a.date).getTime();
+            });
+
+            return (
+              <div className="space-y-6">
+                {/* Header with Filters */}
+                <div className="bg-brand-card border border-brand-border rounded-[2rem] p-6 shadow-xl">
+                  <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold text-white">Support Tickets</h3>
+                    <div className="flex flex-wrap gap-3 w-full lg:w-auto">
+                      {/* Search */}
+                      <input
+                        type="text"
+                        placeholder="Search tickets..."
+                        value={ticketSearchTerm}
+                        onChange={(e) => setTicketSearchTerm(e.target.value)}
+                        className="flex-1 lg:flex-none lg:w-64 bg-black/40 border border-brand-border rounded-xl text-sm text-white px-4 py-2 focus:outline-none focus:border-brand-primary placeholder:text-gray-500"
+                      />
+
+                      {/* Status Filter */}
+                      <select
+                        value={ticketStatusFilter}
+                        onChange={(e) => setTicketStatusFilter(e.target.value as any)}
+                        className="bg-black/40 border border-brand-border rounded-xl text-xs text-gray-400 px-4 py-2 focus:outline-none focus:border-brand-primary cursor-pointer hover:bg-white/5 transition-colors"
+                      >
+                        <option value="All">All Statuses</option>
+                        <option value="Open">Open</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Resolved">Resolved</option>
+                      </select>
+
+                      {/* Priority Filter */}
+                      <select
+                        value={ticketPriorityFilter}
+                        onChange={(e) => setTicketPriorityFilter(e.target.value as any)}
+                        className="bg-black/40 border border-brand-border rounded-xl text-xs text-gray-400 px-4 py-2 focus:outline-none focus:border-brand-primary cursor-pointer hover:bg-white/5 transition-colors"
+                      >
+                        <option value="All">All Priorities</option>
+                        <option value="Urgent">Urgent</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
+                      </select>
+
+                      {/* Clear Filters */}
+                      {(ticketStatusFilter !== 'All' || ticketPriorityFilter !== 'All' || ticketSearchTerm.trim()) && (
+                        <button
+                          onClick={() => {
+                            setTicketStatusFilter('All');
+                            setTicketPriorityFilter('All');
+                            setTicketSearchTerm('');
+                          }}
+                          className="text-xs text-brand-primary hover:text-white transition-colors underline whitespace-nowrap"
+                        >
+                          Clear Filters
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/5">
+                      <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider mb-1">Total</p>
+                      <p className="text-2xl font-bold text-white">{allTickets.length}</p>
+                    </div>
+                    <div className="bg-red-500/10 rounded-xl p-4 border border-red-500/20">
+                      <p className="text-[10px] text-red-400 font-black uppercase tracking-wider mb-1">Urgent</p>
+                      <p className="text-2xl font-bold text-red-400">{allTickets.filter(t => t.priority === 'Urgent').length}</p>
+                    </div>
+                    <div className="bg-yellow-500/10 rounded-xl p-4 border border-yellow-500/20">
+                      <p className="text-[10px] text-yellow-400 font-black uppercase tracking-wider mb-1">Open</p>
+                      <p className="text-2xl font-bold text-yellow-400">{allTickets.filter(t => t.status === 'Open').length}</p>
+                    </div>
+                    <div className="bg-green-500/10 rounded-xl p-4 border border-green-500/20">
+                      <p className="text-[10px] text-green-400 font-black uppercase tracking-wider mb-1">Resolved</p>
+                      <p className="text-2xl font-bold text-green-400">{allTickets.filter(t => t.status === 'Resolved').length}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tickets Table */}
+                <div className="bg-brand-card border border-brand-border rounded-[2rem] p-6 shadow-xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="text-[9px] text-gray-500 font-black uppercase tracking-[0.1em] border-b border-white/5">
+                          <th className="px-4 py-4 whitespace-nowrap">Ticket ID</th>
+                          <th className="px-4 py-4 whitespace-nowrap">Customer</th>
+                          <th className="px-4 py-4">Subject</th>
+                          <th className="px-4 py-4 whitespace-nowrap">Priority</th>
+                          <th className="px-4 py-4 whitespace-nowrap">Status</th>
+                          <th className="px-4 py-4 whitespace-nowrap">Assigned To</th>
+                          <th className="px-4 py-4 whitespace-nowrap">Created</th>
+                          <th className="px-4 py-4 whitespace-nowrap">Last Updated</th>
+                          <th className="px-4 py-4 text-right whitespace-nowrap">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredTickets.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="text-center py-12 text-gray-500">
+                              {allTickets.length === 0 ? 'No tickets yet' : 'No tickets match your filters'}
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredTickets.map(ticket => (
+                            <tr
+                              key={ticket.id}
+                              onClick={() => setSelectedTicket(ticket)}
+                              className="border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer group"
+                            >
+                              <td className="px-4 py-4 text-white font-mono text-xs">{ticket.id}</td>
+                              <td className="px-4 py-4">
+                                <div>
+                                  <p className="text-white text-sm font-bold">{ticket.userName}</p>
+                                  <p className="text-gray-500 text-xs">{ticket.customerEmail}</p>
+                                </div>
+                              </td>
+                              <td className="px-4 py-4 text-gray-300 text-sm max-w-xs truncate">{ticket.subject}</td>
+                              <td className="px-4 py-4">
+                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${ticket.priority === 'Urgent' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                                  ticket.priority === 'High' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
+                                    ticket.priority === 'Medium' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
+                                      'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                                  }`}>
+                                  {ticket.priority}
+                                </span>
+                              </td>
+                              <td className="px-4 py-4">
+                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${ticket.status === 'Resolved' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                                  ticket.status === 'In Progress' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                                    ticket.status === 'Pending' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' :
+                                      'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                                  }`}>
+                                  {ticket.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-4 text-gray-400 text-xs">
+                                {ticket.assignedToName || <span className="text-gray-600 italic">Unassigned</span>}
+                              </td>
+                              <td className="px-4 py-4 text-gray-400 text-xs">{ticket.date}</td>
+                              <td className="px-4 py-4 text-gray-400 text-xs">
+                                {new Date(ticket.lastUpdated || ticket.date).toLocaleString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTicket(ticket);
+                                  }}
+                                  className="bg-brand-primary/10 text-brand-primary px-4 py-2 rounded-lg text-xs font-bold hover:bg-brand-primary hover:text-white transition-all"
+                                >
+                                  View
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {activeTab === 'settings' && (
             <div className="bg-brand-card border border-brand-border rounded-[2.5rem] p-10 flex items-center justify-center min-h-[400px]">
               <div className="text-center">
@@ -1093,9 +1305,21 @@ export default function AdminDashboard() {
                   <h3 className="text-2xl font-bold text-white">KYC Verification</h3>
                   <p className="text-sm text-gray-500 mt-1">Review documents for <span className="text-white font-bold">{selectedKYCUser.name}</span></p>
                 </div>
-                <button onClick={() => setSelectedKYCUser(null)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-all">
-                  <span className="material-symbols-outlined">close</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {selectedKYCUser.kycHistory && selectedKYCUser.kycHistory.length > 0 && (
+                    <button
+                      onClick={() => setViewingKYCHistory(selectedKYCUser)}
+                      className="bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl text-gray-400 hover:text-white transition-all border border-brand-border flex items-center gap-2"
+                      title="View KYC History"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">history</span>
+                      <span className="text-xs font-bold uppercase tracking-wider">History</span>
+                    </button>
+                  )}
+                  <button onClick={() => setSelectedKYCUser(null)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-all">
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
@@ -1190,48 +1414,90 @@ export default function AdminDashboard() {
               </div>
 
               <div className="flex flex-col gap-4 border-t border-white/5 pt-6">
-                {/* Rejection Input - only show if not already approved */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-gray-400 text-xs font-bold uppercase tracking-widest">Action</label>
-                  <div className="flex gap-4">
-                    <input
-                      type="text"
+                {/* Rejection Input - Enhanced with validation */}
+                <div className="flex flex-col gap-3">
+                  <label className="text-gray-400 text-xs font-bold uppercase tracking-widest">Rejection Reason</label>
+                  <div className="relative">
+                    <textarea
                       id="rejectionReason"
-                      placeholder="Reason for rejection (required for reject)"
-                      className="flex-1 bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-500/50 transition-all placeholder:text-gray-600"
+                      value={rejectionReason}
+                      onChange={(e) => {
+                        const value = e.target.value.slice(0, 500); // Enforce 500 char limit
+                        setRejectionReason(value);
+                        if (rejectionError && value.trim()) {
+                          setRejectionError(false);
+                        }
+                      }}
+                      placeholder="Provide specific feedback to help the user resubmit correctly (e.g., 'Document image is blurry. Please upload a clear, high-resolution photo')"
+                      className={`w-full bg-black/40 border rounded-xl px-4 py-3 text-white text-sm focus:outline-none transition-all placeholder:text-gray-600 resize-none ${rejectionError ? 'border-red-500 ring-2 ring-red-500/20' : 'border-brand-border focus:border-brand-primary'
+                        }`}
+                      rows={4}
+                      maxLength={500}
                     />
-                    <button
-                      onClick={() => {
-                        const reasonInput = document.getElementById('rejectionReason') as HTMLInputElement;
-                        const reason = reasonInput.value;
-
-                        if (!reason) {
-                          alert("Please provide a reason for rejection.");
-                          return;
-                        }
-
-                        if (confirm("Confirm Rejection with reason: " + reason + "?")) {
-                          updateKYCStatus(selectedKYCUser.id, 'rejected', undefined, reason);
-                          setSelectedKYCUser(null);
-                        }
-                      }}
-                      className="bg-red-500/10 text-red-500 hover:bg-red-500/20 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap"
-                    >
-                      Reject
-                    </button>
-                    <button
-                      onClick={async () => {
-                        if (confirm("Confirm Approval?")) {
-                          const result = await updateKYCStatus(selectedKYCUser.id, 'approved');
-                          if (result) alert(result);
-                          setSelectedKYCUser(null);
-                        }
-                      }}
-                      className="bg-green-500 text-white hover:bg-green-600 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-glow whitespace-nowrap"
-                    >
-                      Approve
-                    </button>
+                    {rejectionError && (
+                      <div className="absolute -top-8 left-0 bg-red-500/90 text-white text-xs px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <span className="material-symbols-outlined text-sm">error</span>
+                        <span>Rejection reason is required</span>
+                      </div>
+                    )}
                   </div>
+                  <div className="flex justify-between items-center">
+                    <span className={`text-xs ${rejectionReason.length >= 450 ? 'text-yellow-500 font-bold' :
+                      rejectionReason.length >= 500 ? 'text-red-500 font-bold' :
+                        'text-gray-500'
+                      }`}>
+                      {rejectionReason.length}/500 characters
+                    </span>
+                    {rejectionReason.trim() && (
+                      <button
+                        onClick={() => {
+                          setRejectionReason('');
+                          setRejectionError(false);
+                        }}
+                        className="text-xs text-gray-500 hover:text-white transition-colors underline"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-4 pt-2">
+                  <button
+                    onClick={() => {
+                      const reason = rejectionReason.trim();
+
+                      if (!reason) {
+                        setRejectionError(true);
+                        return;
+                      }
+
+                      if (confirm(`Confirm Rejection?\n\nReason: "${reason}"\n\nThis will be sent to the customer.`)) {
+                        updateKYCStatus(selectedKYCUser.id, 'rejected', undefined, reason);
+                        setSelectedKYCUser(null);
+                        setRejectionReason('');
+                        setRejectionError(false);
+                      }
+                    }}
+                    className="flex-1 bg-red-500/10 text-red-500 hover:bg-red-500/20 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-red-500/20 hover:border-red-500/40"
+                  >
+                    Reject KYC
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (confirm("Confirm KYC Approval?\n\nThis will enable the user to proceed with rental checkouts.")) {
+                        const result = await updateKYCStatus(selectedKYCUser.id, 'approved');
+                        if (result) alert(result);
+                        setSelectedKYCUser(null);
+                        setRejectionReason('');
+                        setRejectionError(false);
+                      }
+                    }}
+                    className="flex-1 bg-green-500 text-white hover:bg-green-600 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-glow"
+                  >
+                    Approve KYC
+                  </button>
                 </div>
               </div>
             </div>
@@ -1440,6 +1706,322 @@ export default function AdminDashboard() {
             </div>
           </div>
         )
+      }
+
+      {/* KYC History Modal */}
+      {
+        viewingKYCHistory && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setViewingKYCHistory(null)} />
+            <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-3xl shadow-2xl overflow-y-auto max-h-[90vh]">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="text-2xl font-bold text-white">KYC History</h3>
+                  <p className="text-sm text-gray-500 mt-1">Complete audit trail for <span className="text-white font-bold">{viewingKYCHistory.name}</span></p>
+                </div>
+                <button onClick={() => setViewingKYCHistory(null)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-all">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              {/* Current Status Banner */}
+              <div className={`mb-6 p-4 rounded-xl border ${viewingKYCHistory.kycStatus === 'approved' ? 'bg-green-500/10 border-green-500/20' :
+                viewingKYCHistory.kycStatus === 'rejected' ? 'bg-red-500/10 border-red-500/20' :
+                  viewingKYCHistory.kycStatus === 'pending' ? 'bg-yellow-500/10 border-yellow-500/20' :
+                    'bg-gray-500/10 border-gray-500/20'
+                }`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider font-bold">Current Status</p>
+                    <p className={`text-lg font-bold mt-1 ${viewingKYCHistory.kycStatus === 'approved' ? 'text-green-500' :
+                      viewingKYCHistory.kycStatus === 'rejected' ? 'text-red-500' :
+                        viewingKYCHistory.kycStatus === 'pending' ? 'text-yellow-500' :
+                          'text-gray-500'
+                      }`}>
+                      {viewingKYCHistory.kycStatus?.toUpperCase() || 'NOT SUBMITTED'}
+                    </p>
+                  </div>
+                  {viewingKYCHistory.kycVerifiedDate && (
+                    <div className="text-right">
+                      <p className="text-xs text-gray-400 uppercase tracking-wider font-bold">Last Updated</p>
+                      <p className="text-sm text-white mt-1">{new Date(viewingKYCHistory.kycVerifiedDate).toLocaleString()}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Timeline (Newest First)</h4>
+                {viewingKYCHistory.kycHistory && viewingKYCHistory.kycHistory.length > 0 ? (
+                  <div className="space-y-4">
+                    {[...viewingKYCHistory.kycHistory].reverse().map((entry: any, idx: number) => (
+                      <div key={entry.id} className="flex gap-4">
+                        {/* Timeline Indicator */}
+                        <div className="flex flex-col items-center">
+                          <div className={`w-3 h-3 rounded-full ${entry.action === 'approved' ? 'bg-green-500' :
+                            entry.action === 'rejected' ? 'bg-red-500' :
+                              entry.action === 'resubmitted' ? 'bg-blue-500' :
+                                'bg-yellow-500'
+                            }`}></div>
+                          {idx !== viewingKYCHistory.kycHistory.length - 1 && (
+                            <div className="w-px h-full bg-white/10 my-1"></div>
+                          )}
+                        </div>
+
+                        {/* Event Details */}
+                        <div className="flex-1 bg-white/5 rounded-xl p-4 border border-white/5">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className={`text-sm font-bold uppercase tracking-wider ${entry.action === 'approved' ? 'text-green-500' :
+                                entry.action === 'rejected' ? 'text-red-500' :
+                                  entry.action === 'resubmitted' ? 'text-blue-500' :
+                                    'text-yellow-500'
+                                }`}>
+                                {entry.action}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {new Date(entry.timestamp).toLocaleString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </p>
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase border ${entry.status === 'approved' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                              entry.status === 'rejected' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                                'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                              }`}>
+                              {entry.status}
+                            </span>
+                          </div>
+
+                          {/* Admin Info */}
+                          {entry.adminName && (
+                            <div className="mb-2 flex items-center gap-2">
+                              <span className="material-symbols-outlined text-brand-primary text-sm">admin_panel_settings</span>
+                              <span className="text-xs text-gray-400">Reviewed by: <span className="text-white font-bold">{entry.adminName}</span></span>
+                            </div>
+                          )}
+
+                          {/* Rejection Reason */}
+                          {entry.reason && (
+                            <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                              <p className="text-[10px] text-red-400 uppercase tracking-wider font-bold mb-1">Rejection Reason</p>
+                              <p className="text-sm text-white">{entry.reason}</p>
+                            </div>
+                          )}
+
+                          {/* Document References */}
+                          {entry.documents && (
+                            <div className="mt-3 flex gap-2">
+                              <span className="material-symbols-outlined text-gray-500 text-sm">description</span>
+                              <span className="text-xs text-gray-400">Documents archived</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <span className="material-symbols-outlined text-4xl text-gray-600 mb-2">history</span>
+                    <p className="text-gray-500">No history available</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Ticket Detail Modal */}
+      {
+        selectedTicket && (() => {
+          const adminList = allUsers.filter(u => u.role === 'admin');
+
+          return (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedTicket(null)} />
+              <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-5xl shadow-2xl overflow-y-auto max-h-[90vh]">
+                {/* Header */}
+                <div className="flex justify-between items-start mb-6 pb-6 border-b border-white/10">
+                  <div>
+                    <h3 className="text-2xl font-bold text-white mb-2">{selectedTicket.subject}</h3>
+                    <p className="text-sm text-gray-500">Ticket ID: <span className="font-mono text-white">{selectedTicket.id}</span></p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedTicket(null)}
+                    className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-all"
+                  >
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left Column - Customer Info & Controls */}
+                  <div className="space-y-4">
+                    {/* Customer Info */}
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/5">
+                      <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider mb-3">Customer Information</p>
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-xs text-gray-500">Name</p>
+                          <p className="text-white font-bold">{selectedTicket.userName}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Email</p>
+                          <p className="text-white text-sm">{selectedTicket.customerEmail}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Created</p>
+                          <p className="text-white text-sm">{selectedTicket.date}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Status Control */}
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/5">
+                      <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider mb-3">Status</p>
+                      <select
+                        value={selectedTicket.status}
+                        onChange={(e) => {
+                          updateTicketStatus(selectedTicket.id, e.target.value as any);
+                          setSelectedTicket({ ...selectedTicket, status: e.target.value });
+                        }}
+                        className="w-full bg-black/40 border border-brand-border rounded-lg text-sm text-white px-3 py-2 focus:outline-none focus:border-brand-primary cursor-pointer"
+                      >
+                        <option value="Open">Open</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Resolved">Resolved</option>
+                      </select>
+                    </div>
+
+                    {/* Priority Control */}
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/5">
+                      <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider mb-3">Priority</p>
+                      <select
+                        value={selectedTicket.priority}
+                        onChange={(e) => {
+                          updateTicketPriority(selectedTicket.id, e.target.value as any);
+                          setSelectedTicket({ ...selectedTicket, priority: e.target.value });
+                        }}
+                        className="w-full bg-black/40 border border-brand-border rounded-lg text-sm text-white px-3 py-2 focus:outline-none focus:border-brand-primary cursor-pointer"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Urgent">Urgent</option>
+                      </select>
+                    </div>
+
+                    {/* Assignment Control */}
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/5">
+                      <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider mb-3">Assigned To</p>
+                      <select
+                        value={selectedTicket.assignedTo || ''}
+                        onChange={(e) => {
+                          const selectedAdmin = adminList.find(a => a.id === e.target.value);
+                          if (selectedAdmin) {
+                            assignTicket(selectedTicket.id, selectedAdmin.id, selectedAdmin.name);
+                            setSelectedTicket({ ...selectedTicket, assignedTo: selectedAdmin.id, assignedToName: selectedAdmin.name });
+                          }
+                        }}
+                        className="w-full bg-black/40 border border-brand-border rounded-lg text-sm text-white px-3 py-2 focus:outline-none focus:border-brand-primary cursor-pointer"
+                      >
+                        <option value="">Unassigned</option>
+                        {adminList.map(admin => (
+                          <option key={admin.id} value={admin.id}>{admin.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Right Column - Conversation Thread */}
+                  <div className="lg:col-span-2 space-y-4">
+                    {/* Messages */}
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/5 max-h-[400px] overflow-y-auto">
+                      <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider mb-4">Conversation</p>
+                      <div className="space-y-4">
+                        {selectedTicket.messages && selectedTicket.messages.length > 0 ? (
+                          selectedTicket.messages.map((msg: any) => (
+                            <div key={msg.id} className={`flex gap-3 ${msg.senderRole === 'admin' ? 'flex-row-reverse' : ''}`}>
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.senderRole === 'admin' ? 'bg-brand-primary/20 text-brand-primary' : 'bg-white/10 text-white'
+                                }`}>
+                                <span className="material-symbols-outlined text-sm">
+                                  {msg.senderRole === 'admin' ? 'support_agent' : 'person'}
+                                </span>
+                              </div>
+                              <div className={`flex-1 ${msg.senderRole === 'admin' ? 'text-right' : ''}`}>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <p className={`text-xs font-bold ${msg.senderRole === 'admin' ? 'text-brand-primary' : 'text-white'}`}>
+                                    {msg.senderName}
+                                  </p>
+                                  <p className="text-[10px] text-gray-500">
+                                    {new Date(msg.timestamp).toLocaleString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </p>
+                                </div>
+                                <div className={`inline-block p-3 rounded-lg ${msg.senderRole === 'admin'
+                                    ? 'bg-brand-primary/10 border border-brand-primary/20'
+                                    : 'bg-white/10 border border-white/5'
+                                  }`}>
+                                  <p className="text-sm text-white whitespace-pre-wrap">{msg.message}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-gray-500 text-center py-4">No messages yet</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Reply Input */}
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/5">
+                      <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider mb-3">Send Reply</p>
+                      <textarea
+                        value={ticketReplyInput}
+                        onChange={(e) => setTicketReplyInput(e.target.value)}
+                        placeholder="Type your response..."
+                        className="w-full bg-black/40 border border-brand-border rounded-lg text-sm text-white px-4 py-3 focus:outline-none focus:border-brand-primary placeholder:text-gray-500 min-h-[100px] resize-none"
+                      />
+                      <div className="flex justify-between items-center mt-3">
+                        <p className="text-xs text-gray-500">{ticketReplyInput.length} characters</p>
+                        <button
+                          onClick={async () => {
+                            if (ticketReplyInput.trim()) {
+                              await addTicketMessage(selectedTicket.id, ticketReplyInput.trim());
+                              setTicketReplyInput('');
+                              // Refresh ticket data
+                              const updatedUser = allUsers.find(u => u.id === selectedTicket.userId);
+                              const updatedTicket = updatedUser?.tickets?.find(t => t.id === selectedTicket.id);
+                              if (updatedTicket) {
+                                setSelectedTicket({ ...updatedTicket, userId: selectedTicket.userId, userName: selectedTicket.userName, customerEmail: selectedTicket.customerEmail });
+                              }
+                            }
+                          }}
+                          disabled={!ticketReplyInput.trim()}
+                          className="bg-brand-primary text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-brand-primaryHover transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">send</span>
+                          Send Reply
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()
       }
 
       {/* Image Zoom Modal */}

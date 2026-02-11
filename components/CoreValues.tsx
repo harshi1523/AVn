@@ -41,9 +41,9 @@ export default function CoreValues() {
               className="group flex flex-col gap-6 rounded-xl border border-gray-700 bg-[#121212] p-8 hover:shadow-lg hover:border-brand-accent/30 transition-all duration-300"
             >
               <div className="w-14 h-14 rounded-full bg-brand-accent/10 flex items-center justify-center group-hover:bg-brand-accent/20 transition-colors">
-                 <span className="material-symbols-outlined text-brand-accent icon-lg">
-                    {value.icon}
-                 </span>
+                <span className="material-symbols-outlined text-brand-accent icon-lg">
+                  {value.icon}
+                </span>
               </div>
               <div>
                 <h3 className="text-xl font-bold text-white mb-3">

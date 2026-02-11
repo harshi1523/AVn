@@ -1,16 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useStore } from "../lib/store";
 import AdminDashboard from "./AdminDashboard";
 import { generateInvoice } from "../lib/invoice";
-
+import ToastNotification from "./ToastNotification";
 import AddressModal from "./AddressModal";
+import { Address } from "../lib/types";
 
 interface DashboardProps {
     initialTab?: 'rentals' | 'orders' | 'support';
 }
 
 export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
-    const { user, orders, tickets, addTicket, logout, updateRentalPreferences, refreshProfile } = useStore();
+    const { user, orders, tickets, addTicket, logout, updateRentalPreferences, refreshProfile, removeAddress, setDefaultAddress } = useStore();
     const [activeTab, setActiveTab] = useState<'rentals' | 'orders' | 'support'>(initialTab);
     const [ticketSubject, setTicketSubject] = useState("");
     const [ticketDescription, setTicketDescription] = useState("");
@@ -18,6 +19,25 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
     // Modal States
     const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [editingAddress, setEditingAddress] = useState<Address | undefined>(undefined);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+    const [upiId, setUpiId] = useState(user?.rentalPreferences?.upiId || '');
+    const [selectedMethod, setSelectedMethod] = useState<'card' | 'upi' | 'net_banking'>('upi');
+
+    // Toast State
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error'; visible: boolean } | null>(null);
+
+    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+        setToast({ message, type, visible: true });
+    };
+
+    // Auto-fill form data when user data loads
+    useEffect(() => {
+        if (user?.rentalPreferences) {
+            setUpiId(user.rentalPreferences.upiId || '');
+            setSelectedMethod(user.rentalPreferences.depositMethod || 'upi'); // Default to 'upi' if not set
+        }
+    }, [user, isPaymentModalOpen]);
 
 
     React.useEffect(() => {
@@ -176,6 +196,87 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                                     </button>
                                 </div>
                             ) : null}
+                        </div>
+                    )}
+
+                    {/* Address Management Section */}
+                    {user.kycStatus === 'approved' && user.addresses && user.addresses.length > 0 && (
+                        <div className="bg-brand-card border border-brand-border rounded-[2rem] p-8 mb-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-lg font-bold text-white">Saved Addresses</h3>
+                                <button
+                                    onClick={() => {
+                                        setEditingAddress(undefined);
+                                        setIsAddressModalOpen(true);
+                                    }}
+                                    className="text-xs bg-brand-primary text-white px-4 py-2 rounded-lg font-bold hover:bg-brand-primary/90 transition-all"
+                                >
+                                    + Add New
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {user.addresses.map(addr => (
+                                    <div
+                                        key={addr.id}
+                                        className={`bg-black/20 border rounded-xl p-4 ${addr.isDefault ? 'border-brand-primary' : 'border-white/5'}`}
+                                    >
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold uppercase tracking-widest text-brand-primary">
+                                                    {addr.label}
+                                                </span>
+                                                {addr.isDefault && (
+                                                    <span className="text-[10px] bg-brand-primary/20 text-brand-primary px-2 py-0.5 rounded-full font-bold">
+                                                        DEFAULT
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingAddress(addr);
+                                                        setIsAddressModalOpen(true);
+                                                    }}
+                                                    className="text-gray-400 hover:text-white transition-colors"
+                                                    title="Edit"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => setDeleteConfirmId(addr.id)}
+                                                    className="text-gray-400 hover:text-red-400 transition-colors"
+                                                    title="Delete"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {addr.recipientName && (
+                                            <p className="text-white text-sm font-bold mb-1">{addr.recipientName}</p>
+                                        )}
+                                        <p className="text-gray-400 text-sm mb-1">{addr.address}</p>
+                                        <p className="text-gray-400 text-sm mb-2">
+                                            {addr.city}{addr.state ? `, ${addr.state}` : ''}{addr.pincode ? ` - ${addr.pincode}` : ''}
+                                        </p>
+                                        <p className="text-gray-400 text-xs mb-3">📞 {addr.phone}</p>
+                                        {!addr.isDefault && (
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await setDefaultAddress(addr.id);
+                                                        showToast('Default address updated successfully!');
+                                                    } catch (error: any) {
+                                                        showToast(error.message || 'Failed to set default address', 'error');
+                                                    }
+                                                }}
+                                                className="text-xs text-brand-primary hover:underline font-bold"
+                                            >
+                                                Set as Default
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
 
@@ -351,7 +452,52 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                 </div>
             </div>
             {/* Address Modal */}
-            {isAddressModalOpen && <AddressModal onClose={() => setIsAddressModalOpen(false)} />}
+            {isAddressModalOpen && (
+                <AddressModal
+                    onClose={() => {
+                        setIsAddressModalOpen(false);
+                        setEditingAddress(undefined);
+                    }}
+                    editAddress={editingAddress}
+                    onSuccess={(message) => showToast(message)}
+                />
+            )}
+
+            {/* Delete Confirmation Dialog */}
+            {deleteConfirmId && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setDeleteConfirmId(null)} />
+                    <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
+                        <h3 className="text-xl font-bold text-white mb-4">Delete Address?</h3>
+                        <p className="text-gray-400 text-sm mb-6">
+                            Are you sure you want to delete this address? This action cannot be undone.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setDeleteConfirmId(null)}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold text-gray-400 hover:bg-white/5 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await removeAddress(deleteConfirmId);
+                                        showToast('Address deleted successfully!');
+                                        setDeleteConfirmId(null);
+                                    } catch (error: any) {
+                                        showToast(error.message || 'Failed to delete address', 'error');
+                                        setDeleteConfirmId(null);
+                                    }
+                                }}
+                                className="flex-1 bg-red-500 text-white py-3 rounded-xl text-sm font-bold hover:bg-red-600 transition-all"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Payment Preference Modal */}
             {
@@ -362,7 +508,7 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                             <h3 className="text-xl font-bold text-white mb-6">Payment Preference</h3>
                             <p className="text-gray-400 text-sm mb-6">Select your preferred method for monthly rental payments and security deposit refunds.</p>
 
-                            <div className="flex flex-col gap-3">
+                            <div className="flex flex-col gap-3 mb-6">
                                 {[
                                     { id: 'card', label: 'Credit/Debit Card', icon: 'credit_card' },
                                     { id: 'upi', label: 'UPI / VPA', icon: 'qr_code' },
@@ -370,23 +516,80 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                                 ].map(method => (
                                     <button
                                         key={method.id}
-                                        onClick={async () => {
-                                            await updateRentalPreferences({ depositMethod: method.id as any, isOnboardingComplete: true });
-                                            setIsPaymentModalOpen(false);
+                                        onClick={() => {
+                                            // Just update local state, don't save yet
+                                            setUpiId(method.id === 'upi' ? (user?.rentalPreferences?.upiId || '') : '');
                                         }}
-                                        className="flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-brand-primary/50 transition-all group"
+                                        className={`flex items-center gap-4 p-4 rounded-xl border transition-all group ${user?.rentalPreferences?.depositMethod === method.id
+                                            ? 'bg-brand-primary/10 border-brand-primary'
+                                            : 'bg-white/5 hover:bg-white/10 border-white/5 hover:border-brand-primary/50'
+                                            }`}
                                     >
-                                        <div className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-brand-primary group-hover:bg-brand-primary group-hover:text-white transition-colors">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${user?.rentalPreferences?.depositMethod === method.id
+                                            ? 'bg-brand-primary text-white'
+                                            : 'bg-black/40 text-brand-primary group-hover:bg-brand-primary group-hover:text-white'
+                                            }`}>
                                             <span className="material-symbols-outlined">{method.icon}</span>
                                         </div>
                                         <span className="font-bold text-white">{method.label}</span>
                                     </button>
                                 ))}
                             </div>
+
+                            {/* UPI ID Input */}
+                            <div className="mb-6">
+                                <label className="text-gray-400 text-xs font-bold uppercase tracking-widest block mb-2">
+                                    UPI ID (Optional)
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="yourname@upi"
+                                    value={upiId}
+                                    onChange={(e) => setUpiId(e.target.value)}
+                                    className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-brand-primary transition-all"
+                                />
+                                <p className="text-gray-500 text-xs mt-2">Enter your UPI ID for faster checkout</p>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setIsPaymentModalOpen(false)}
+                                    className="flex-1 py-3 rounded-xl text-sm font-bold text-gray-400 hover:bg-white/5 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            await updateRentalPreferences({
+                                                depositMethod: user?.rentalPreferences?.depositMethod || 'upi',
+                                                isOnboardingComplete: true,
+                                                upiId: upiId || undefined
+                                            });
+                                            showToast('Payment preferences saved successfully!');
+                                            setIsPaymentModalOpen(false);
+                                        } catch (error: any) {
+                                            showToast(error.message || 'Failed to save preferences', 'error');
+                                        }
+                                    }}
+                                    className="flex-1 bg-brand-primary text-white py-3 rounded-xl text-sm font-bold hover:bg-brand-primary/90 transition-all shadow-glow"
+                                >
+                                    Save Preferences
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )
             }
+
+            {/* Toast Notification */}
+            {toast && (
+                <ToastNotification
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
+            )}
         </div >
     );
 }

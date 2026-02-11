@@ -10,6 +10,7 @@ interface ProductSummary {
   rating?: number;
   condition?: string;
   type?: 'rent' | 'buy';
+  status?: string;
 }
 
 interface ProductSectionProps {
@@ -47,6 +48,17 @@ export default function ProductSection({ title, products, onProductClick, onView
                   <span className={`material-symbols-outlined text-[18px] ${isInWishlist ? 'filled-icon' : 'font-light'}`}>favorite</span>
                 </button>
               </div>
+
+              {/* Status Badge */}
+              {product.status && product.status !== 'AVAILABLE' && (
+                <div className={`absolute top-4 left-4 z-30 px-3 py-1.5 rounded-lg border backdrop-blur-md text-[9px] font-bold uppercase tracking-widest ${product.status === 'LOW STOCK' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500' :
+                  product.status === 'RENTED' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
+                    'bg-red-500/10 border-red-500/20 text-red-500'
+                  }`}>
+                  {product.status.replace('_', ' ')}
+                </div>
+              )}
+
               <div className="relative aspect-square bg-black/60 p-8 flex items-center justify-center group-hover:bg-black/40 transition-colors">
                 <img src={product.image} alt={product.name} className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700" />
               </div>

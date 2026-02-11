@@ -14,7 +14,8 @@ export interface Address {
     state?: string;
     pincode?: string;
     phone: string;
-    isDefault?: boolean;
+    recipientName?: string;  // Optional recipient name (defaults to user name)
+    isDefault?: boolean;     // Mark as default address for checkout
 }
 
 export interface CartItem {
@@ -63,13 +64,42 @@ export interface Order {
     internalNotes?: { id: string; content: string; author: string; date: string }[];
 }
 
+export interface TicketMessage {
+    id: string;
+    senderId: string;
+    senderName: string;
+    senderRole: 'admin' | 'user';
+    message: string;
+    timestamp: string;
+    attachments?: string[];
+}
+
 export interface Ticket {
     id: string;
+    userId: string;
     subject: string;
     description: string;
     status: 'Open' | 'Pending' | 'In Progress' | 'Resolved';
+    priority: 'Low' | 'Medium' | 'High' | 'Urgent';
     date: string;
+    lastUpdated: string;
     userName?: string;
+    customerEmail?: string;
+    assignedTo?: string;
+    assignedToName?: string;
+    relatedOrderId?: string;
+    messages: TicketMessage[];
+}
+
+export interface KYCHistoryEntry {
+    id: string;
+    action: 'submitted' | 'approved' | 'rejected' | 'resubmitted';
+    status: 'pending' | 'approved' | 'rejected';
+    timestamp: string;
+    adminId?: string;
+    adminName?: string;
+    reason?: string;
+    documents?: { front: string; back: string; type: string };
 }
 
 export interface User {
@@ -91,10 +121,13 @@ export interface User {
     kycVerifiedBy?: string;
     kycSubmissionDate?: string;
     kycRejectionReason?: string;
+    kycHistory?: KYCHistoryEntry[];
     rentalPreferences?: {
         depositMethod: 'card' | 'upi' | 'net_banking';
         isOnboardingComplete: boolean;
         termsAccepted?: boolean;
+        upiId?: string;        // UPI ID for UPI payments
+        cardLast4?: string;    // Last 4 digits of card for display
     };
     pendingCheckout?: {
         address: string;
