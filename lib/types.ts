@@ -52,7 +52,15 @@ export interface Order {
     rentalEndDate?: string;
     depositAmount?: number;
     deliveryMethod?: 'pickup' | 'delivery';
-    invoiceUrl?: string; // New field
+    invoiceUrl?: string;
+    paymentStatus?: 'Paid' | 'Pending' | 'Failed' | 'Refunded';
+    paymentMethod?: 'Card' | 'UPI' | 'NetBanking' | 'COD';
+    transactionId?: string;
+    tax?: number;
+    deliveryFee?: number;
+    timeline?: { status: string; date: string; note?: string }[];
+    trackingInfo?: { courier: string; trackingNumber: string; url?: string };
+    internalNotes?: { id: string; content: string; author: string; date: string }[];
 }
 
 export interface Ticket {
@@ -68,7 +76,9 @@ export interface User {
     id: string;
     name: string;
     email: string;
-    role: 'customer' | 'admin';
+    avatar?: string;
+    role: 'admin' | 'user';
+    accountStatus?: 'active' | 'suspended';
     joinedDate?: string;
     addresses?: Address[];
     wishlist?: string[];
@@ -78,6 +88,8 @@ export interface User {
     kycStatus?: 'pending' | 'approved' | 'rejected' | 'reupload_required' | 'not_submitted';
     kycDocuments?: { front: string; back: string; type: string };
     kycVerifiedDate?: string;
+    kycVerifiedBy?: string;
+    kycSubmissionDate?: string;
     kycRejectionReason?: string;
     rentalPreferences?: {
         depositMethod: 'card' | 'upi' | 'net_banking';

@@ -14,8 +14,8 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
     const [newFeature, setNewFeature] = useState<ProductFeature>({ title: '', description: '', icon: 'star' });
     const [formData, setFormData] = useState<Partial<Product>>(productToEdit || {
         type: 'rent',
-        category: 'Laptop',
-        brand: 'Generic',
+        category: undefined,
+        brand: undefined,
         condition: 'New',
         status: 'AVAILABLE',
         rating: 5,
@@ -23,8 +23,10 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
         image: '', // No default image
         features: [],
         rentalOptions: [],
-        deposit: 0
+        deposit: 0,
+        buyPrice: 0 // Initialize buyPrice
     });
+    const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
     // Rental Option State
     const [newRentalOption, setNewRentalOption] = useState<RentalOption>({ months: 0, price: 0, label: '', discount: '' });
@@ -55,6 +57,7 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
     };
 
     const handleRemoveFeature = (index: number) => {
+        if (!confirm("Remove this feature?")) return;
         setFormData(prev => ({
             ...prev,
             features: (prev.features || []).filter((_, i) => i !== index)
@@ -63,19 +66,48 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: name === 'price' || name === 'originalPrice' ? Number(value) : value
-        }));
+        setFormData(prev => {
+            const updated = {
+                ...prev,
+                [name]: name === 'price' || name === 'originalPrice' ? Number(value) : value
+            };
+
+            // Reset rental specific fields if switching to buy
+            if (name === 'type' && value === 'buy') {
+                updated.rentalOptions = [];
+                updated.deposit = 0;
+            }
+            return updated;
+        });
     };
+
+    const isRentable = formData.type === 'rent' || formData.type === 'rent_and_buy';
+    const isBuyable = formData.type === 'buy' || formData.type === 'rent_and_buy';
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
         // Basic validation
-        if (!formData.name || !formData.price) {
-            alert("Name and Price are required");
+        const newErrors: { [key: string]: string } = {};
+        if (!formData.name) newErrors.name = "Product name is required";
+
+        // Context-aware error message for price
+        if (isRentable) {
+            if (!formData.price || formData.price <= 0) newErrors.price = "Valid Monthly Rent is required";
+        }
+        if (formData.type === 'buy') {
+            if (!formData.price || formData.price <= 0) newErrors.price = "Valid Selling Price is required";
+        }
+        if (formData.type === 'rent_and_buy') {
+            if (!formData.buyPrice || formData.buyPrice <= 0) newErrors.buyPrice = "Valid Selling Price is required";
+        }
+
+        if (!formData.category) newErrors.category = "Category is required";
+        if (!formData.brand) newErrors.brand = "Brand is required";
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
             setLoading(false);
             return;
         }
@@ -98,7 +130,7 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative w-full max-w-2xl bg-brand-card rounded-[2rem] shadow-2xl border border-brand-border p-8 animate-in zoom-in-95 duration-300">
+            <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar bg-brand-card rounded-[2rem] shadow-2xl border border-brand-border p-8 animate-in zoom-in-95 duration-300">
                 <div className="flex justify-between items-center mb-8">
                     <h2 className="text-2xl font-display font-bold text-white">
                         {productToEdit ? 'Edit Product' : 'Add New Product'}
@@ -115,11 +147,14 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                             <input
                                 name="name"
                                 value={formData.name || ''}
-                                onChange={handleChange}
-                                className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
+                                onChange={(e) => {
+                                    handleChange(e);
+                                    if (errors.name) setErrors({ ...errors, name: '' });
+                                }}
+                                className={`w-full bg-black/40 border ${errors.name ? 'border-red-500' : 'border-brand-border'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm`}
                                 placeholder="e.g. MacBook Pro M3"
-                                required
                             />
+                            {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Subtitle</label>
@@ -134,18 +169,44 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Price (₹)</label>
-                            <input
-                                type="number"
-                                name="price"
-                                value={formData.price || ''}
-                                onChange={handleChange}
-                                className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
-                                placeholder="0.00"
-                                required
-                            />
-                        </div>
+                        {isRentable && (
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Monthly Rent (₹)</label>
+                                <input
+                                    type="number"
+                                    name="price"
+                                    value={formData.price || ''}
+                                    onChange={(e) => {
+                                        handleChange(e);
+                                        if (errors.price) setErrors({ ...errors, price: '' });
+                                    }}
+                                    className={`w-full bg-black/40 border ${errors.price ? 'border-red-500' : 'border-brand-border'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm`}
+                                    placeholder="0.00"
+                                />
+                                {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
+                            </div>
+                        )}
+
+                        {isBuyable && (
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Selling Price (₹)</label>
+                                <input
+                                    type="number"
+                                    name={formData.type === 'rent_and_buy' ? 'buyPrice' : 'price'}
+                                    value={(formData.type === 'rent_and_buy' ? formData.buyPrice : formData.price) || ''}
+                                    onChange={(e) => {
+                                        handleChange(e);
+                                        const key = formData.type === 'rent_and_buy' ? 'buyPrice' : 'price';
+                                        if (errors[key]) setErrors({ ...errors, [key]: '' });
+                                    }}
+                                    className={`w-full bg-black/40 border ${errors[formData.type === 'rent_and_buy' ? 'buyPrice' : 'price'] ? 'border-red-500' : 'border-brand-border'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm`}
+                                    placeholder="0.00"
+                                />
+                                {errors.buyPrice && formData.type === 'rent_and_buy' && <p className="text-red-500 text-xs mt-1">{errors.buyPrice}</p>}
+                                {errors.price && formData.type === 'buy' && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
+                            </div>
+                        )}
+
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Original Price (₹)</label>
                             <input
@@ -170,16 +231,21 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                             >
                                 <option value="rent">Rent</option>
                                 <option value="buy">Buy</option>
+                                <option value="rent_and_buy">Buy & Rent</option>
                             </select>
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Category</label>
                             <select
                                 name="category"
-                                value={formData.category}
-                                onChange={handleChange}
-                                className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
+                                value={formData.category || ''}
+                                onChange={(e) => {
+                                    handleChange(e);
+                                    if (errors.category) setErrors({ ...errors, category: '' });
+                                }}
+                                className={`w-full bg-black/40 border ${errors.category ? 'border-red-500' : 'border-brand-border'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm`}
                             >
+                                <option value="" disabled>Select Category</option>
                                 <option value="Laptop">Laptop</option>
                                 <option value="Desktop">Desktop</option>
                                 <option value="Monitor">Monitor</option>
@@ -187,15 +253,20 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                 <option value="Gaming">Gaming</option>
                                 <option value="Accessories">Accessories</option>
                             </select>
+                            {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Brand</label>
                             <select
                                 name="brand"
-                                value={formData.brand}
-                                onChange={handleChange}
-                                className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
+                                value={formData.brand || ''}
+                                onChange={(e) => {
+                                    handleChange(e);
+                                    if (errors.brand) setErrors({ ...errors, brand: '' });
+                                }}
+                                className={`w-full bg-black/40 border ${errors.brand ? 'border-red-500' : 'border-brand-border'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm`}
                             >
+                                <option value="" disabled>Select Brand</option>
                                 <option value="Apple">Apple</option>
                                 <option value="Dell">Dell</option>
                                 <option value="HP">HP</option>
@@ -203,11 +274,42 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                 <option value="Asus">Asus</option>
                                 <option value="Generic">Other</option>
                             </select>
+                            {errors.brand && <p className="text-red-500 text-xs mt-1">{errors.brand}</p>}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Status</label>
+                            <select
+                                name="status"
+                                value={formData.status || 'AVAILABLE'}
+                                onChange={handleChange}
+                                className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
+                            >
+                                <option value="AVAILABLE">Available</option>
+                                <option value="LOW STOCK">Low Stock</option>
+                                <option value="OUT_OF_STOCK">Out of Stock</option>
+                                <option value="RENTED">Rented</option>
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Condition</label>
+                            <select
+                                name="condition"
+                                value={formData.condition || 'New'}
+                                onChange={handleChange}
+                                className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
+                            >
+                                <option value="New">New</option>
+                                <option value="Refurbished">Refurbished</option>
+                                <option value="Open Box">Open Box</option>
+                            </select>
                         </div>
                     </div>
 
                     {/* Rental Specific Fields */}
-                    {formData.type === 'rent' && (
+                    {isRentable && (
                         <div className="space-y-4 pt-4 border-t border-white/10">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Security Deposit (₹)</label>
@@ -335,51 +437,105 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                     </div>
 
                     <div className="space-y-2 pt-4 border-t border-white/10">
-                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Product Image</label>
-                        <div className="flex items-center gap-4">
-                            <div className="w-20 h-20 rounded-xl bg-black/40 border border-brand-border flex items-center justify-center overflow-hidden relative group">
-                                {formData.image ? (
-                                    <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
-                                ) : (
-                                    <span className="material-symbols-outlined text-gray-600">image</span>
-                                )}
-                                {loading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /></div>}
-                            </div>
-                            <div className="flex-1">
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Product Images</label>
+                        <div className="space-y-4">
+                            {/* Image Preview Grid */}
+                            {formData.images && formData.images.length > 0 && (
+                                <div className="grid grid-cols-4 gap-2">
+                                    {formData.images.map((img, index) => (
+                                        <div key={index} className="relative aspect-square rounded-lg overflow-hidden group border border-white/10 bg-black/40">
+                                            <img src={img} className="w-full h-full object-cover" />
+                                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                {index === 0 && <span className="text-[8px] font-black uppercase bg-brand-primary text-black px-1 rounded absolute top-1 left-1">Main</span>}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const updatedImages = formData.images?.filter((_, i) => i !== index) || [];
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            images: updatedImages,
+                                                            image: updatedImages[0] || ''
+                                                        }));
+                                                    }}
+                                                    className="p-1 rounded-full bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">delete</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Upload Area */}
+                            <div className="relative">
                                 <input
                                     type="file"
                                     accept="image/*"
+                                    multiple
                                     onChange={async (e) => {
-                                        const file = e.target.files?.[0];
-                                        if (!file) return;
+                                        const files = e.target.files;
+                                        if (!files || files.length === 0) return;
 
-                                        // Validate File Type
-                                        const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
-                                        if (!validTypes.includes(file.type)) {
-                                            alert('Invalid file type. Please upload JPG, PNG, or WEBP.');
+                                        // Validate Max Images
+                                        const currentImages = formData.images || (formData.image ? [formData.image] : []);
+                                        if (currentImages.length + files.length > 10) {
+                                            alert('Maximum 10 images allowed.');
                                             return;
                                         }
 
                                         setLoading(true);
+                                        const newImages: string[] = [];
+
                                         try {
-                                            const fileExt = file.name.split('.').pop();
-                                            const fileName = `${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-                                            const filePath = `${fileName}`;
+                                            for (let i = 0; i < files.length; i++) {
+                                                const file = files[i];
 
-                                            const { error: uploadError } = await supabase.storage
-                                                .from('product-images')
-                                                .upload(filePath, file);
+                                                // Validate File Type
+                                                const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+                                                if (!validTypes.includes(file.type)) {
+                                                    alert('Invalid file format. Supported: JPG, PNG, WEBP');
+                                                    continue;
+                                                }
 
-                                            if (uploadError) throw uploadError;
+                                                // Validate File Size (5MB)
+                                                if (file.size > 5 * 1024 * 1024) {
+                                                    alert(`File ${file.name} exceeds 5MB limit.`);
+                                                    continue;
+                                                }
 
-                                            const { data: { publicUrl } } = supabase.storage
-                                                .from('product-images')
-                                                .getPublicUrl(filePath);
+                                                const fileExt = file.name.split('.').pop();
+                                                const fileName = `${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+                                                // Make path unique per file
+                                                const filePath = `${fileName}`;
 
-                                            setFormData(prev => ({ ...prev, image: publicUrl }));
+                                                const { error: uploadError } = await supabase.storage
+                                                    .from('product-images')
+                                                    .upload(filePath, file);
+
+                                                if (uploadError) throw uploadError;
+
+                                                const { data: { publicUrl } } = supabase.storage
+                                                    .from('product-images')
+                                                    .getPublicUrl(filePath);
+
+                                                newImages.push(publicUrl);
+                                            }
+
+                                            // Update State
+                                            setFormData(prev => {
+                                                const updatedImages = [...(prev.images || (prev.image ? [prev.image] : [])), ...newImages];
+                                                // Ensure no duplicates if needed, but simple append is fine
+                                                return {
+                                                    ...prev,
+                                                    image: updatedImages[0] || '', // Primary image
+                                                    images: updatedImages
+                                                };
+                                            });
+
                                         } catch (error) {
-                                            console.error('Error uploading image:', error);
-                                            alert('Error uploading image. Please check if "product-images" bucket exists and is public.');
+                                            console.error('Error uploading images:', error);
+                                            alert('Failed to upload some images. Please try again.');
                                         } finally {
                                             setLoading(false);
                                         }
@@ -389,12 +545,20 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                 />
                                 <label
                                     htmlFor="product-image-upload"
-                                    className="cursor-pointer inline-flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all border border-brand-border"
+                                    className="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed border-white/10 rounded-xl hover:bg-white/5 hover:border-brand-primary/50 transition-all cursor-pointer group"
                                 >
-                                    <span className="material-symbols-outlined text-sm">cloud_upload</span>
-                                    {formData.image ? 'Change Image' : 'Upload New Image'}
+                                    {loading ? (
+                                        <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mb-2" />
+                                    ) : (
+                                        <span className="material-symbols-outlined text-3xl text-gray-500 group-hover:text-brand-primary mb-2 transition-colors">cloud_upload</span>
+                                    )}
+                                    <span className="text-xs font-bold text-gray-300 group-hover:text-white transition-colors">
+                                        {loading ? 'Uploading...' : 'Click to Upload Images'}
+                                    </span>
+                                    <span className="text-[9px] text-gray-500 mt-1">
+                                        Supported: JPG, PNG, WEBP (Max 5MB). Up to 10 images.
+                                    </span>
                                 </label>
-                                <p className="text-[10px] text-gray-500 mt-2">Recommended: PNG, JPG, WEBP. Max 5MB.</p>
                             </div>
                         </div>
                     </div>
@@ -420,3 +584,11 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
         </div>
     );
 }
+
+/* 
+ * CRITICAL UI FIX FOR VISIBILITY:
+ * The modal container has `max-w-2xl` but no fixed height or overflow control in the original code beyond window size.
+ * The user reported button visibility issues.
+ * Ensuring the modal body is scrollable if content overflows viewport height.
+ * In the `className` of the main container: added `max-h-[90vh] overflow-y-auto`.
+ */

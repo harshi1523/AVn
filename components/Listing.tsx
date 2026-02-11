@@ -124,6 +124,15 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                             <div key={product.id} onClick={() => onProductClick(product.id)} className="group relative bg-brand-card border border-white/5 rounded-[2rem] overflow-hidden cursor-pointer transition-all hover:border-brand-primary/40 hover:-translate-y-2 flex flex-col h-full shadow-xl">
                                 <div className="aspect-square bg-black/40 p-6 flex items-center justify-center">
                                     <img src={product.image} alt={product.name} className="w-[85%] h-[85%] object-contain group-hover:scale-110 transition-all duration-700" />
+                                    {/* Status Badge */}
+                                    {product.status && product.status !== 'AVAILABLE' && (
+                                        <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border backdrop-blur-md ${product.status === 'OUT_OF_STOCK' ? 'bg-red-500/20 text-red-500 border-red-500/30' :
+                                                product.status === 'RENTED' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                                                    'bg-yellow-500/20 text-yellow-500 border-yellow-500/30' // Low Stock
+                                            }`}>
+                                            {product.status.replace('_', ' ')}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="p-6 flex-1 flex flex-col">
                                     <h4 className="font-bold text-white mb-2 line-clamp-2 text-base uppercase tracking-tight">{product.name}</h4>

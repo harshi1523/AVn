@@ -17,6 +17,9 @@ export default function ProductDetails({ productId, onBack }: ProductDetailsProp
 
   const [localReviews] = useState<Review[]>(product?.reviewsList || []);
 
+  const allImages = product?.images && product.images.length > 0 ? product.images : (product?.image ? [product.image] : []);
+  const [selectedImage, setSelectedImage] = useState(allImages[0] || '');
+
   if (!product) return <div className="p-20 text-center text-white/20 font-display text-xl uppercase tracking-widest">Product Not Found</div>;
 
   const [purchaseMode, setPurchaseMode] = useState<'rent' | 'buy'>(product.type || 'buy');
@@ -65,29 +68,55 @@ export default function ProductDetails({ productId, onBack }: ProductDetailsProp
       <div className="flex flex-col lg:flex-row px-4 md:px-8 pt-4 pb-12 gap-8">
         <div className="lg:w-[45%] flex flex-col">
           <div className="flex gap-4 mb-6">
-            <div className="flex-1 relative flex items-center justify-center min-h-[300px] md:min-h-[400px]">
-              <img src={product.image} className="max-w-full max-h-full object-contain" alt={product.name} />
+            <div className="flex-1 relative flex flex-col items-center justify-center min-h-[300px] md:min-h-[400px]">
+              <img src={selectedImage} className="max-w-full max-h-full object-contain mb-4" alt={product.name} />
+
+              {/* Thumbnail Gallery */}
+              {allImages.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-2 w-full justify-center max-w-full custom-scrollbar">
+                  {allImages.map((img, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedImage(img)}
+                      className={`w-16 h-16 rounded-lg border-2 overflow-hidden flex-shrink-0 transition-all ${selectedImage === img ? 'border-brand-primary' : 'border-transparent opacity-50 hover:opacity-100'}`}
+                    >
+                      <img src={img} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => handleAddToCart(false)} className="bg-cta-gradient text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] shadow-glow">
-              <span className="material-symbols-outlined text-lg">shopping_cart</span>
-              {justAdded ? 'Added' : 'Add to Cart'}
-            </button>
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                console.log("Button clicked. Mode:", purchaseMode, "User:", user ? "Logged In" : "Guest");
-                // Unified flow: Add to cart -> Checkout (Validation happens there)
-                handleAddToCart(true);
-              }}
-              className={`font-bold py-4 rounded-xl flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] transition-all ${isModeRent ? 'bg-brand-primary text-white shadow-glow' : 'bg-white text-black'}`}
-            >
-              <span className="material-symbols-outlined text-lg">{isModeRent ? 'real_estate_agent' : 'bolt'}</span>
-              {isModeRent ? 'Rent Now' : 'Buy Now'}
-            </button>
+          <div className="flex flex-col gap-3">
+            <div className="flex gap-2 mb-2">
+              {product.status === 'LOW STOCK' && <span className="text-brand-warning text-xs font-bold uppercase tracking-widest flex items-center gap-1"><span className="material-symbols-outlined text-sm">warning</span> Low Stock</span>}
+              {product.status === 'RENTED' && <span className="text-blue-400 text-xs font-bold uppercase tracking-widest flex items-center gap-1"><span className="material-symbols-outlined text-sm">lock</span> Rented Out</span>}
+              {product.status === 'OUT_OF_STOCK' && <span className="text-red-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1"><span className="material-symbols-outlined text-sm">block</span> Out of Stock</span>}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => handleAddToCart(false)}
+                disabled={product.status === 'RENTED' || product.status === 'OUT_OF_STOCK'}
+                className={`text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] shadow-glow disabled:opacity-50 disabled:cursor-not-allowed ${product.status === 'OUT_OF_STOCK' ? 'bg-white/10' : 'bg-cta-gradient'}`}
+              >
+                <span className="material-symbols-outlined text-lg">{product.status === 'OUT_OF_STOCK' ? 'notifications' : 'shopping_cart'}</span>
+                {product.status === 'OUT_OF_STOCK' ? 'Notify Me' : (justAdded ? 'Added' : 'Add to Cart')}
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleAddToCart(true);
+                }}
+                disabled={product.status === 'RENTED' || product.status === 'OUT_OF_STOCK'}
+                className={`font-bold py-4 rounded-xl flex items-center justify-center gap-3 uppercase tracking-widest text-[10px] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${isModeRent ? 'bg-brand-primary text-white shadow-glow' : 'bg-white text-black'}`}
+              >
+                <span className="material-symbols-outlined text-lg">{isModeRent ? 'real_estate_agent' : 'bolt'}</span>
+                {isModeRent ? 'Rent Now' : 'Buy Now'}
+              </button>
+            </div>
           </div>
-        </div>
+        </div >
 
         <div className="flex-1 flex flex-col pt-2">
           <button onClick={onBack} className="flex items-center gap-1 text-[9px] font-bold text-white/20 hover:text-white uppercase tracking-widest mb-4">
@@ -187,49 +216,53 @@ export default function ProductDetails({ productId, onBack }: ProductDetailsProp
             </div>
           </div>
         </div>
-      </div>
+      </div >
 
       <hr className="border-white/5 my-12" />
 
-      {product.features && product.features.length > 0 && (
-        <section className="px-4 md:px-8 py-8">
-          <h3 className="venus-heading">Elite Features</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {product.features.map((feature, idx) => (
-              <div key={idx} className="bg-brand-card/40 p-6 rounded-3xl border border-white/5">
-                <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary mb-4">
-                  <span className="material-symbols-outlined text-[20px]">{feature.icon || 'settings'}</span>
+      {
+        product.features && product.features.length > 0 && (
+          <section className="px-4 md:px-8 py-8">
+            <h3 className="venus-heading">Elite Features</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {product.features.map((feature, idx) => (
+                <div key={idx} className="bg-brand-card/40 p-6 rounded-3xl border border-white/5">
+                  <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary mb-4">
+                    <span className="material-symbols-outlined text-[20px]">{feature.icon || 'settings'}</span>
+                  </div>
+                  <h4 className="text-white font-bold text-base mb-2">{feature.title}</h4>
+                  <p className="text-white/40 text-xs leading-relaxed">{feature.description}</p>
                 </div>
-                <h4 className="text-white font-bold text-base mb-2">{feature.title}</h4>
-                <p className="text-white/40 text-xs leading-relaxed">{feature.description}</p>
-              </div>
-            ))}
-          </div>
-          <hr className="border-white/5 my-12" />
-        </section>
-      )}
+              ))}
+            </div>
+            <hr className="border-white/5 my-12" />
+          </section>
+        )
+      }
 
-      {product.fullSpecs && (
-        <section className="px-4 md:px-8 py-8">
-          <h3 className="venus-heading">Technical Manifest</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-            {Object.entries(product.fullSpecs).map(([category, specs]) => (
-              <div key={category}>
-                <h4 className="text-white font-bold text-[11px] uppercase tracking-widest mb-4 border-b border-white/10 pb-2">{category}</h4>
-                <div className="space-y-3">
-                  {Object.entries(specs).map(([label, value]) => (
-                    <div key={label} className="flex justify-between items-baseline gap-4">
-                      <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest">{label}</span>
-                      <span className="text-xs text-white font-medium text-right">{value}</span>
-                    </div>
-                  ))}
+      {
+        product.fullSpecs && (
+          <section className="px-4 md:px-8 py-8">
+            <h3 className="venus-heading">Technical Manifest</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+              {Object.entries(product.fullSpecs).map(([category, specs]) => (
+                <div key={category}>
+                  <h4 className="text-white font-bold text-[11px] uppercase tracking-widest mb-4 border-b border-white/10 pb-2">{category}</h4>
+                  <div className="space-y-3">
+                    {Object.entries(specs).map(([label, value]) => (
+                      <div key={label} className="flex justify-between items-baseline gap-4">
+                        <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest">{label}</span>
+                        <span className="text-xs text-white font-medium text-right">{value}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-          <hr className="border-white/5 my-12" />
-        </section>
-      )}
+              ))}
+            </div>
+            <hr className="border-white/5 my-12" />
+          </section>
+        )
+      }
 
       <section className="px-4 md:px-8 py-8">
         <h3 className="venus-heading">Deployment Feedback</h3>
@@ -254,6 +287,6 @@ export default function ProductDetails({ productId, onBack }: ProductDetailsProp
         </div>
         <hr className="border-white/5 my-12" />
       </section>
-    </div>
+    </div >
   );
 }

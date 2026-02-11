@@ -27,7 +27,7 @@ export interface Review {
 export interface Product {
   id: string;
   deposit?: number;
-  type: 'rent' | 'buy';
+  type: 'rent' | 'buy' | 'rent_and_buy';
   brand: 'Apple' | 'Dell' | 'HP' | 'Lenovo' | 'Asus' | 'Acer' | 'Razer' | 'Logitech' | 'Generic';
   category?: 'Laptop' | 'Desktop' | 'Monitor' | 'Tablet' | 'Audio' | 'Keyboards' | 'Mice' | 'Gaming' | 'Accessories';
   name: string;
@@ -35,6 +35,7 @@ export interface Product {
   price: number;
   originalPrice: number;
   image: string;
+  images?: string[];
   videoUrl?: string;
   rating: number;
   reviews: number;
@@ -67,6 +68,11 @@ export const products: Product[] = [
     price: 8500,
     originalPrice: 12000,
     image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=1200&auto=format&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=1200&auto=format&fit=crop', // Main
+      'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?q=80&w=1200&auto=format&fit=crop', // Side
+      'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?q=80&w=1200&auto=format&fit=crop'  // Keyboard
+    ],
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-top-view-of-a-person-typing-on-a-laptop-4488-large.mp4',
     rating: 4.9,
     reviews: 128,

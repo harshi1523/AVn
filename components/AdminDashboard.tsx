@@ -7,17 +7,22 @@ import AddProductModal from "./AddProductModal";
 import { generateInvoice } from "../lib/invoice";
 
 export default function AdminDashboard() {
-  const { user, finance, orders, tickets, allUsers, products: allProducts, logout, updateOrderStatus, updateTicketStatus, updateKYCStatus, deleteProduct } = useStore();
+  const { user, finance, orders, tickets, allUsers, products: allProducts, logout, updateOrderStatus, updateTicketStatus, updateKYCStatus, deleteProduct, updateOrderNotes, updateUserStatus } = useStore();
 
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'orders' | 'users' | 'financials' | 'reports' | 'settings' | 'support'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [selectedKYCUser, setSelectedKYCUser] = useState<any>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewingUser, setViewingUser] = useState<User | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [noteInput, setNoteInput] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteContent, setEditingNoteContent] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'user' | 'admin'>('all');
 
   const handleNavigateToProduct = (id: string) => {
     console.log("Navigating to product:", id);
@@ -49,17 +54,26 @@ export default function AdminDashboard() {
   endDate.setHours(23, 59, 59, 999);
 
   // 2. Filter Products (for Inventory)
-  const filteredProducts = allProducts.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.type && p.type.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredProducts = allProducts.filter(p => {
+    if (!searchTerm) return true;
+    const query = searchTerm.toLowerCase();
+    const keywords = query.split(/\s+/);
+    const searchableText = `${p.name} ${p.id} ${p.brand} ${p.category || ''} ${p.type || ''}`.toLowerCase();
+    return keywords.every(kw => searchableText.includes(kw));
+  });
+
+  const [filterStatus, setFilterStatus] = useState<Order['status'] | 'All'>('All');
 
   // 3. Filter Orders
   const filteredOrders = allOrders.filter(o => {
     const d = new Date(o.date);
-    return d >= startDate && d <= endDate;
+    const matchesDate = d >= startDate && d <= endDate;
+    const matchesStatus = filterStatus === 'All' || o.status === 'Completed' && filterStatus === 'Delivered' ? true : o.status === filterStatus; // Handle Completed/Delivered mapping if needed? No, exact match is better.
+    // Actually, let's stick to exact match for simplicity first. 
+    // Wait, 'Completed' and 'Delivered' are distinct?
+    // In types.ts: 'Placed' | 'Awaiting Delivery' | 'In Transit' | 'Delivered' | 'In Use' | 'Returning' | 'Inspection' | 'Completed' | 'Cancelled'
+
+    return matchesDate && (filterStatus === 'All' || o.status === filterStatus);
   });
 
   // 3. Filter Tickets
@@ -336,25 +350,64 @@ export default function AdminDashboard() {
             </div>
           )}
 
+
           {activeTab === 'orders' && (
             <div className="bg-brand-card border border-brand-border rounded-[2rem] lg:rounded-[3rem] p-6 lg:p-10 shadow-2xl overflow-hidden">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-white">Order Management</h3>
+                <div className="flex gap-4">
+                  {(filterStatus !== 'All' || dateRange !== '7d') && (
+                    <button
+                      onClick={() => { setFilterStatus('All'); setDateRange('7d'); }}
+                      className="text-xs text-brand-primary hover:text-white transition-colors underline"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value as any)}
+                    className="bg-black/40 border border-brand-border rounded-xl text-xs text-gray-400 px-4 py-2 focus:outline-none focus:border-brand-primary cursor-pointer hover:bg-white/5 transition-colors"
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Placed">Placed</option>
+                    <option value="Shipped">Shipped</option>
+                    <option value="Delivered">Delivered</option>
+                    <option value="In Use">In Use (Active Rentals)</option>
+                    <option value="Return Requested">Return Requested</option>
+                    <option value="Returned">Returned</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+
               {/* Mobile Card View */}
               <div className="md:hidden space-y-4">
-                {allOrders.map(order => (
-                  <div key={order.id} className="bg-white/5 rounded-2xl p-6 border border-white/5">
+                {filteredOrders.length === 0 ? <p className="text-gray-500 text-center py-8">No orders found.</p> : filteredOrders.map(order => (
+                  <div key={order.id} onClick={() => setSelectedOrder(order)} className="bg-white/5 rounded-2xl p-6 border border-white/5 cursor-pointer hover:bg-white/10 transition-all">
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <p className="text-white font-bold">{order.userName}</p>
                         <p className="text-[10px] text-gray-500">{order.id}</p>
+                        <p className="text-[10px] text-gray-400 mt-1">{order.date}</p>
                       </div>
-                      <span className="px-3 py-1 rounded-full bg-brand-primary/10 text-brand-primary text-[10px] font-black uppercase border border-brand-primary/20">
-                        {order.status}
-                      </span>
+                      <div className="flex flex-col items-end gap-2">
+                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${order.status === 'Completed' || order.status === 'Delivered' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                          order.status === 'Cancelled' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                            order.status === 'In Use' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                              'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                          }`}>
+                          {order.status}
+                        </span>
+                        <span className="text-[9px] text-gray-400 bg-white/5 px-2 py-1 rounded">{order.items[0]?.type === 'rent' ? 'Rental' : 'Purchase'}</span>
+                      </div>
                     </div>
                     <div className="flex justify-between items-center pt-4 border-t border-white/5 gap-2">
                       <p className="text-white font-bold">₹{order.total.toLocaleString()}</p>
                       <button
-                        onClick={async () => {
+                        onClick={async (e) => {
+                          e.stopPropagation();
                           const btn = document.getElementById(`admin-mob-invoice-btn-${order.id}`);
                           if (btn) { btn.style.opacity = '0.5'; }
                           await generateInvoice(order, allUsers.find(u => u.id === order.userId) || null);
@@ -366,51 +419,59 @@ export default function AdminDashboard() {
                       >
                         <span className="material-symbols-outlined text-[18px]">receipt_long</span>
                       </button>
-                      <select
-                        onChange={(e) => handleStatusChange(order.id, e.target.value as any)}
-                        className="bg-black/40 border border-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-gray-400 p-2 focus:outline-none focus:border-brand-primary"
-                      >
-                        <option>Action</option>
-                        <option value="Shipped">Shipped</option>
-                        <option value="Delivered">Delivered</option>
-                        <option value="Returned">Returned</option>
-                      </select>
                     </div>
                   </div>
                 ))}
               </div>
 
               {/* Desktop Table View */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left">
+              <div className="hidden md:block overflow-x-auto min-h-[500px]">
+                <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="text-[9px] text-gray-500 font-black uppercase tracking-[0.4em] border-b border-white/5">
-                      <th className="px-6 py-6 whitespace-nowrap">ID</th>
-                      <th className="px-6 py-6 whitespace-nowrap">Customer</th>
-                      <th className="px-6 py-6 whitespace-nowrap">Total</th>
-                      <th className="px-6 py-6 whitespace-nowrap">Status</th>
-                      <th className="px-6 py-6 text-right whitespace-nowrap">Action</th>
+                    <tr className="text-[9px] text-gray-500 font-black uppercase tracking-[0.1em] border-b border-white/5">
+                      <th className="px-6 py-4 whitespace-nowrap">Order ID</th>
+                      <th className="px-6 py-4 whitespace-nowrap">Date</th>
+                      <th className="px-6 py-4 whitespace-nowrap">Customer</th>
+                      <th className="px-6 py-4 whitespace-nowrap">Type</th>
+                      <th className="px-6 py-4 whitespace-nowrap">Amount</th>
+                      <th className="px-6 py-4 whitespace-nowrap">Payment</th>
+                      <th className="px-6 py-4 whitespace-nowrap">Status</th>
+                      <th className="px-6 py-4 text-right whitespace-nowrap">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {allOrders.map(order => (
-                      <tr key={order.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                        <td className="px-6 py-6 text-white font-mono">{order.id}</td>
-                        <td className="px-6 py-6">
-                          <p className="text-white font-bold">{order.userName}</p>
+                    {filteredOrders.length === 0 ? <tr><td colSpan={8} className="text-center py-12 text-gray-500">No orders found for selected filters.</td></tr> : filteredOrders.map(order => (
+                      <tr key={order.id} onClick={() => setSelectedOrder(order)} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer group">
+                        <td className="px-6 py-4 text-white font-mono text-xs">{order.id}</td>
+                        <td className="px-6 py-4 text-gray-400 text-xs">{order.date}</td>
+                        <td className="px-6 py-4">
+                          <p className="text-white font-bold text-xs">{order.userName}</p>
                           <p className="text-[10px] text-gray-500">{order.userEmail}</p>
                         </td>
-                        <td className="px-6 py-6 text-white font-bold">₹{order.total.toLocaleString()}</td>
-                        <td className="px-6 py-6">
-                          <span className="px-3 py-1 rounded-full bg-brand-primary/10 text-brand-primary text-[10px] font-black uppercase border border-brand-primary/20">
+                        <td className="px-6 py-4">
+                          <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${order.items[0]?.type === 'rent' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                            {order.items[0]?.type === 'rent' ? 'Rental' : 'Buy'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-white font-bold text-sm">₹{order.total.toLocaleString()}</td>
+                        <td className="px-6 py-4">
+                          <span className={`text-[10px] font-bold uppercase ${order.paymentStatus === 'Paid' ? 'text-green-400' : 'text-yellow-400'}`}>
+                            {order.paymentStatus || 'Paid'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${order.status === 'Completed' || order.status === 'Delivered' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                            order.status === 'Cancelled' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                              order.status === 'In Use' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                                'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                            }`}>
                             {order.status}
                           </span>
                         </td>
-                        <td className="px-6 py-6 text-right">
+                        <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex justify-end gap-2 text-right">
                             <button
                               onClick={async () => {
-                                // Simple inline loading state for admin
                                 const btn = document.getElementById(`admin-invoice-btn-${order.id}`);
                                 if (btn) { btn.style.opacity = '0.5'; }
                                 await generateInvoice(order, allUsers.find(u => u.id === order.userId) || null);
@@ -423,14 +484,37 @@ export default function AdminDashboard() {
                               <span className="material-symbols-outlined text-[18px]">receipt_long</span>
                             </button>
                             <select
-                              onChange={(e) => handleStatusChange(order.id, e.target.value as any)}
+                              onChange={(e) => {
+                                const newStatus = e.target.value as any;
+                                if (newStatus === 'Shipped') {
+                                  const courier = prompt("Enter Courier Name:");
+                                  const tracking = prompt("Enter Tracking Number:");
+                                  if (courier && tracking) {
+                                    updateOrderStatus(order.id, newStatus, { courier, trackingNumber: tracking });
+                                  } else {
+                                    alert("Tracking info is required for Shipped status.");
+                                  }
+                                } else {
+                                  updateOrderStatus(order.id, newStatus);
+                                }
+                              }}
                               className="bg-black/40 border border-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-gray-400 p-2 focus:outline-none focus:border-brand-primary"
+                              value={order.status}
                             >
-                              <option>Update Status</option>
+                              <option value="Placed">Placed</option>
+                              <option value="Processing">Processing</option>
                               <option value="Shipped">Shipped</option>
                               <option value="Delivered">Delivered</option>
-                              <option value="Returned">Returned</option>
+                              {/* Rental Specific */}
+                              {order.items.some(i => i.type === 'rent') && (
+                                <>
+                                  <option value="In Use">In Use (Active)</option>
+                                  <option value="Return Requested">Return Requested</option>
+                                  <option value="Returned">Returned</option>
+                                </>
+                              )}
                               <option value="Completed">Completed</option>
+                              <option value="Cancelled">Cancelled</option>
                             </select>
                           </div>
                         </td>
@@ -439,6 +523,227 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Order Detail Modal */}
+              {selectedOrder && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedOrder(null)}>
+                  <div className="bg-[#0a0a0a] border border-white/10 rounded-[2rem] w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+                    <div className="p-8 border-b border-white/5 flex justify-between items-start sticky top-0 bg-[#0a0a0a]/95 backdrop-blur z-10">
+                      <div>
+                        <h2 className="text-2xl font-bold text-white mb-1">Order Details</h2>
+                        <p className="text-sm text-gray-500 font-mono">#{selectedOrder.id}</p>
+                      </div>
+                      <button onClick={() => setSelectedOrder(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white">
+                        <span className="material-symbols-outlined">close</span>
+                      </button>
+                    </div>
+
+                    <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+                      {/* Customer & Delivery */}
+                      <div className="space-y-6">
+                        <div className="bg-white/5 p-6 rounded-2xl border border-white/5">
+                          <h4 className="text-xs font-black uppercase text-gray-500 tracking-widest mb-4">Customer Info</h4>
+                          <div className="space-y-2">
+                            <p className="text-white font-bold text-lg">{selectedOrder.userName}</p>
+                            <p className="text-gray-400 text-sm flex items-center gap-2"><span className="material-symbols-outlined text-base">mail</span> {selectedOrder.userEmail}</p>
+                            <p className="text-gray-400 text-sm flex items-center gap-2"><span className="material-symbols-outlined text-base">call</span> {allUsers.find(u => u.id === selectedOrder.userId)?.addresses?.[0]?.phone || 'N/A'}</p>
+                          </div>
+                        </div>
+
+                        <div className="bg-white/5 p-6 rounded-2xl border border-white/5">
+                          <h4 className="text-xs font-black uppercase text-gray-500 tracking-widest mb-4">Delivery Details</h4>
+                          <div className="space-y-2">
+                            <p className="text-gray-300 text-sm leading-relaxed">{selectedOrder.address}</p>
+                            <div className="mt-4 flex gap-4">
+                              <div className="text-center bg-black/40 p-3 rounded-xl border border-white/5 flex-1">
+                                <p className="text-[10px] text-gray-500 uppercase">Method</p>
+                                <p className="text-white font-bold">{selectedOrder.deliveryMethod === 'pickup' ? 'Store Pickup' : 'Home Delivery'}</p>
+                              </div>
+                              <div className="text-center bg-black/40 p-3 rounded-xl border border-white/5 flex-1">
+                                <p className="text-[10px] text-gray-500 uppercase">Status</p>
+                                <p className="text-brand-primary font-bold">{selectedOrder.status}</p>
+                              </div>
+                            </div>
+                            {selectedOrder.trackingInfo && (
+                              <div className="mt-2 bg-brand-primary/10 p-3 rounded-xl border border-brand-primary/20">
+                                <p className="text-[10px] text-brand-primary uppercase font-bold">Tracking Info</p>
+                                <p className="text-white text-xs mt-1">{selectedOrder.trackingInfo.courier}: {selectedOrder.trackingInfo.trackingNumber}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Order Items & Summary */}
+                      <div className="space-y-6">
+                        <div className="bg-white/5 p-6 rounded-2xl border border-white/5">
+                          <h4 className="text-xs font-black uppercase text-gray-500 tracking-widest mb-4">Ordered Items</h4>
+                          <div className="space-y-4">
+                            {selectedOrder.items.map((item, idx) => (
+                              <div key={idx} className="flex gap-4 items-start pb-4 border-b border-white/5 last:border-0 last:pb-0">
+                                <div className="w-16 h-16 bg-white/5 rounded-xl p-2 flex-shrink-0">
+                                  <img src={item.image} className="w-full h-full object-contain" />
+                                </div>
+                                <div className="flex-1">
+                                  <p className="text-white font-bold text-sm">{item.name}</p>
+                                  <p className="text-xs text-gray-400">Qty: {item.quantity}</p>
+                                  {item.type === 'rent' && (
+                                    <div className="mt-1 flex gap-2">
+                                      <span className="bg-purple-500/10 text-purple-400 text-[10px] px-2 py-0.5 rounded border border-purple-500/20">Rent: {item.tenure} Months</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-white font-bold text-sm">₹{item.price.toLocaleString()}</p>
+                                  {item.type === 'rent' && <p className="text-[10px] text-gray-500">/mo</p>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="bg-white/5 p-6 rounded-2xl border border-white/5">
+                          <h4 className="text-xs font-black uppercase text-gray-500 tracking-widest mb-4">Internal Notes</h4>
+                          <div className="space-y-4 mb-4">
+                            {selectedOrder.internalNotes?.map((note) => (
+                              <div key={note.id} className="bg-black/30 p-4 rounded-xl border border-white/5">
+                                <div className="flex justify-between items-start mb-2">
+                                  <div>
+                                    <p className="text-xs text-brand-primary font-bold">{note.author}</p>
+                                    <p className="text-[10px] text-gray-500">{new Date(note.date).toLocaleString()}</p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    {editingNoteId === note.id ? (
+                                      <>
+                                        <button
+                                          onClick={() => {
+                                            const updatedNotes = selectedOrder.internalNotes?.map(n =>
+                                              n.id === note.id ? { ...n, content: editingNoteContent, date: new Date().toISOString() + ' (Edited)' } : n
+                                            );
+                                            updateOrderNotes(selectedOrder.id, updatedNotes);
+                                            setSelectedOrder({ ...selectedOrder, internalNotes: updatedNotes });
+                                            setEditingNoteId(null);
+                                            setEditingNoteContent('');
+                                          }}
+                                          className="text-green-500 hover:text-green-400 transition-colors"
+                                          title="Save"
+                                        >
+                                          <span className="material-symbols-outlined text-sm">check</span>
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setEditingNoteId(null);
+                                            setEditingNoteContent('');
+                                          }}
+                                          className="text-gray-500 hover:text-white transition-colors"
+                                          title="Cancel"
+                                        >
+                                          <span className="material-symbols-outlined text-sm">close</span>
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button
+                                          onClick={() => {
+                                            setEditingNoteId(note.id);
+                                            setEditingNoteContent(note.content);
+                                          }}
+                                          className="text-gray-500 hover:text-white transition-colors"
+                                          title="Edit"
+                                        >
+                                          <span className="material-symbols-outlined text-sm">edit</span>
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            if (confirm('Delete this note?')) {
+                                              const updatedNotes = selectedOrder.internalNotes?.filter(n => n.id !== note.id);
+                                              updateOrderNotes(selectedOrder.id, updatedNotes);
+                                              setSelectedOrder({ ...selectedOrder, internalNotes: updatedNotes }); // Optimistic update
+                                            }
+                                          }}
+                                          className="text-gray-500 hover:text-red-500 transition-colors"
+                                          title="Delete"
+                                        >
+                                          <span className="material-symbols-outlined text-sm">delete</span>
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                {editingNoteId === note.id ? (
+                                  <textarea
+                                    value={editingNoteContent}
+                                    onChange={(e) => setEditingNoteContent(e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-brand-primary"
+                                    rows={3}
+                                  />
+                                ) : (
+                                  <p className="text-sm text-gray-300 whitespace-pre-wrap">{note.content}</p>
+                                )}
+                              </div>
+                            ))}
+                            {(!selectedOrder.internalNotes || selectedOrder.internalNotes.length === 0) && (
+                              <p className="text-sm text-gray-500 italic">No internal notes yet.</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="bg-white/5 p-6 rounded-2xl border border-white/5">
+                          <h4 className="text-xs font-black uppercase text-gray-500 tracking-widest mb-4">Payment Summary</h4>
+                          <div className="space-y-3 text-sm">
+                            <div className="flex justify-between text-gray-400">
+                              <span>Subtotal</span>
+                              <span>₹{selectedOrder.total.toLocaleString()}</span>
+                            </div>
+                            {selectedOrder.depositAmount && (
+                              <div className="flex justify-between text-gray-400">
+                                <span>Security Deposit (Refundable)</span>
+                                <span>₹{selectedOrder.depositAmount.toLocaleString()}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between text-gray-400">
+                              <span>Delivery Fee</span>
+                              <span>₹{selectedOrder.deliveryFee || 0}</span>
+                            </div>
+                            <div className="flex justify-between text-gray-400">
+                              <span>Tax</span>
+                              <span>₹{selectedOrder.tax || 0}</span>
+                            </div>
+                            <div className="pt-3 border-t border-white/10 flex justify-between items-center mt-2">
+                              <span className="text-white font-bold">Total Paid</span>
+                              <span className="text-xl font-bold text-brand-primary">₹{selectedOrder.total.toLocaleString()}</span>
+                            </div>
+                            {selectedOrder.transactionId && (
+                              <p className="text-[10px] text-gray-500 text-center mt-4">Transaction ID: <span className="font-mono text-gray-300">{selectedOrder.transactionId}</span></p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Order Timeline */}
+                        <div className="bg-white/5 p-6 rounded-2xl border border-white/5 col-span-1 md:col-span-2">
+                          <h4 className="text-xs font-black uppercase text-gray-500 tracking-widest mb-4">Order Timeline</h4>
+                          <div className="space-y-4">
+                            {selectedOrder.timeline?.map((event, idx) => (
+                              <div key={idx} className="flex gap-4">
+                                <div className="flex flex-col items-center">
+                                  <div className="w-2 h-2 rounded-full bg-brand-primary"></div>
+                                  {idx !== (selectedOrder.timeline?.length || 0) - 1 && <div className="w-px h-full bg-white/10 my-1"></div>}
+                                </div>
+                                <div>
+                                  <p className="text-sm text-white font-bold">{event.status}</p>
+                                  <p className="text-[10px] text-gray-500">{new Date(event.date).toLocaleString()}</p>
+                                  {event.note && <p className="text-[10px] text-gray-400 mt-1">{event.note}</p>}
+                                </div>
+                              </div>
+                            ))}
+                            {(!selectedOrder.timeline || selectedOrder.timeline.length === 0) && <p className="text-sm text-gray-500">No timeline data available.</p>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -452,8 +757,16 @@ export default function AdminDashboard() {
                     placeholder="Search products..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full bg-black/40 border border-brand-border rounded-xl pl-12 pr-4 py-4 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
+                    className="w-full bg-black/40 border border-brand-border rounded-xl pl-12 pr-10 py-4 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
                   />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-lg">close</span>
+                    </button>
+                  )}
                 </div>
                 <button
                   onClick={() => { setEditingProduct(null); setIsAddProductOpen(true); }}
@@ -463,37 +776,67 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredProducts.map(p => (
-                  <div key={p.id} className="bg-brand-card border border-brand-border rounded-[2.5rem] p-8 shadow-xl group hover:border-brand-primary/50 transition-all">
-                    <div
-                      onClick={() => setSelectedProduct(p)}
-                      className="aspect-[4/3] bg-black/40 rounded-[1.5rem] mb-6 p-6 flex items-center justify-center cursor-pointer hover:bg-black/60 transition-colors relative overflow-hidden"
-                    >
-                      <img src={p.image} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" />
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-full text-white text-[9px] font-black uppercase tracking-widest border border-white/20">Quick View</span>
+              {filteredProducts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center opacity-50">
+                  <span className="material-symbols-outlined text-6xl mb-4">search_off</span>
+                  <p className="text-xl font-bold text-white">No results found</p>
+                  <p className="text-sm text-gray-400 mt-2">Try adjusting your search or filters</p>
+                  <button onClick={() => setSearchTerm('')} className="mt-6 text-brand-primary font-bold uppercase tracking-widest text-[10px] hover:text-white transition-colors">
+                    Clear Search
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredProducts.map(p => (
+                    <div key={p.id} className="bg-brand-card border border-brand-border rounded-[2.5rem] p-8 shadow-xl group hover:border-brand-primary/50 transition-all">
+                      <div
+                        onClick={() => setSelectedProduct(p)}
+                        className="aspect-[4/3] bg-black/40 rounded-[1.5rem] mb-6 p-6 flex items-center justify-center cursor-pointer hover:bg-black/60 transition-colors relative overflow-hidden"
+                      >
+                        <img src={p.image} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" />
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-full text-white text-[9px] font-black uppercase tracking-widest border border-white/20">Quick View</span>
+                        </div>
+                      </div>
+                      <h3 className="text-white font-bold tracking-tight mb-2 truncate">{p.name}</h3>
+                      <div className="flex gap-2 mb-2 flex-wrap">
+                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${p.status === 'AVAILABLE' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                          p.status === 'RENTED' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                            'bg-red-500/10 text-red-500 border-red-500/20'
+                          }`}>{p.status || 'AVAILABLE'}</span>
+                        {p.deposit && (
+                          <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase bg-white/5 text-gray-400 border border-white/10">
+                            Dep: ₹{p.deposit.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-4 mt-6">
+                        <button onClick={() => { setEditingProduct(p); setIsAddProductOpen(true); }} className="flex-1 bg-white/5 hover:bg-white/10 py-4 lg:py-3 rounded-xl text-[9px] font-black uppercase text-gray-400 hover:text-white transition-all cursor-pointer min-h-[44px] flex items-center justify-center">Edit</button>
+                        <button onClick={() => {
+                          // Check for active orders/rentals
+                          const activeOrders = allUsers.flatMap(u => u.orders || []).filter(o =>
+                            (o.status === 'Placed' || o.status === 'Shipped' || o.status === 'Active Rental' || o.status === 'In Use' || o.status === 'Awaiting Delivery') &&
+                            o.items.some(i => i.productId === p.id)
+                          );
+
+                          let message = `Are you sure you want to delete "${p.name}"?`;
+                          if (activeOrders.length > 0) {
+                            message += `\n\nWARNING: This product is currently in ${activeOrders.length} ACTIVE order(s)/rental(s).\nDeleting it will NOT remove it from existing orders, but it will be removed from the catalog.`;
+                          } else {
+                            message += `\n\nThis action cannot be undone.`;
+                          }
+
+                          if (confirm(message)) {
+                            deleteProduct(p.id)
+                              .then(() => alert("Product deleted successfully"))
+                              .catch(err => alert("Failed to delete product: " + err.message));
+                          }
+                        }} className="flex-1 bg-white/5 hover:bg-red-500/20 py-4 lg:py-3 rounded-xl text-[9px] font-black uppercase text-red-400/50 hover:text-red-400 transition-all cursor-pointer min-h-[44px] flex items-center justify-center">Delete</button>
                       </div>
                     </div>
-                    <h3 className="text-white font-bold tracking-tight mb-2 truncate">{p.name}</h3>
-                    <div className="flex gap-2 mb-2 flex-wrap">
-                      <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${p.status === 'AVAILABLE' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
-                        p.status === 'RENTED' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-                          'bg-red-500/10 text-red-500 border-red-500/20'
-                        }`}>{p.status || 'AVAILABLE'}</span>
-                      {p.deposit && (
-                        <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase bg-white/5 text-gray-400 border border-white/10">
-                          Dep: ₹{p.deposit.toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex gap-4 mt-6">
-                      <button onClick={() => { setEditingProduct(p); setIsAddProductOpen(true); }} className="flex-1 bg-white/5 hover:bg-white/10 py-4 lg:py-3 rounded-xl text-[9px] font-black uppercase text-gray-400 hover:text-white transition-all cursor-pointer min-h-[44px] flex items-center justify-center">Edit</button>
-                      <button onClick={() => { if (confirm(`Delete ${p.name}?`)) deleteProduct(p.id); }} className="flex-1 bg-white/5 hover:bg-red-500/20 py-4 lg:py-3 rounded-xl text-[9px] font-black uppercase text-red-400/50 hover:text-red-400 transition-all cursor-pointer min-h-[44px] flex items-center justify-center">Delete</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -509,7 +852,33 @@ export default function AdminDashboard() {
 
           {activeTab === 'users' && (
             <div className="bg-brand-card border border-brand-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl overflow-hidden">
-              <h3 className="text-xl font-bold text-white mb-6">User Management & KYC</h3>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-white">User Management & KYC</h3>
+                <div className="flex gap-4">
+                  {/* Role/Status Filter */}
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value as any)} // Cast to any to accept new value
+                    className="bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-brand-primary cursor-pointer appearance-none"
+                  >
+                    <option value="all">All Users</option>
+                    <option value="user">Customers Only</option>
+                    <option value="admin">Admins Only</option>
+                    <option value="pending_kyc">Pending KYC</option>
+                  </select>
+
+                  <div className="relative w-64">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">search</span>
+                    <input
+                      type="text"
+                      placeholder="Search by Name, Email, ID..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl pl-9 pr-4 py-2 text-sm text-white focus:outline-none focus:border-brand-primary"
+                    />
+                  </div>
+                </div>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
@@ -517,56 +886,92 @@ export default function AdminDashboard() {
                       <th className="px-6 py-6 whitespace-nowrap">User</th>
                       <th className="px-6 py-6 whitespace-nowrap">Email</th>
                       <th className="px-6 py-6 whitespace-nowrap">Role</th>
+                      <th className="px-6 py-6 whitespace-nowrap">Account Status</th>
                       <th className="px-6 py-6 whitespace-nowrap">KYC Status</th>
                       <th className="px-6 py-6 text-right whitespace-nowrap">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {allUsers.map(u => (
-                      <tr key={u.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                        <td className="px-6 py-6 text-white font-bold">{u.name}</td>
-                        <td className="px-6 py-6 text-gray-400 text-sm">{u.email}</td>
-                        <td className="px-6 py-6">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${u.role === 'admin' ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'}`}>
-                            {u.role}
-                          </span>
-                        </td>
-                        <td className="px-6 py-6">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${u.kycStatus === 'approved' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
-                            u.kycStatus === 'rejected' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
-                              u.kycStatus === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
-                                'bg-gray-500/10 text-gray-500 border-gray-500/20'
-                            }`}>
-                            {u.kycStatus || 'Not Submitted'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-6 text-right flex justify-end gap-2">
-                          <button
-                            onClick={() => setViewingUser(u)}
-                            className="bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg text-gray-400 hover:text-white transition-all border border-brand-border"
-                            title="View Profile"
-                          >
-                            <span className="material-symbols-outlined text-[18px]">visibility</span>
-                          </button>
-                          {u.kycStatus === 'pending' && (
+                    {allUsers
+                      .filter(u => {
+                        const matchesSearch = !searchTerm ||
+                          u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          u.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          u.addresses?.some(a => a.phone?.includes(searchTerm));
+
+                        let matchesRole = true;
+                        if (roleFilter === 'all') matchesRole = true;
+                        else if (roleFilter === 'pending_kyc') matchesRole = u.kycStatus === 'pending';
+                        else matchesRole = u.role === roleFilter;
+
+                        return matchesSearch && matchesRole;
+                      })
+                      .sort((a, b) => {
+                        // Sort by submission date if pending, oldest first
+                        if (roleFilter === 'pending_kyc' && a.kycStatus === 'pending' && b.kycStatus === 'pending') {
+                          return new Date(a.kycSubmissionDate || 0).getTime() - new Date(b.kycSubmissionDate || 0).getTime();
+                        }
+                        return 0;
+                      })
+                      .map(u => (
+                        <tr key={u.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                          <td className="px-6 py-6 text-white font-bold">
+                            {u.name}
+                            {u.kycStatus === 'pending' && (
+                              <div className="text-[9px] font-normal text-yellow-500 mt-1 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[10px]">warning</span>
+                                {u.kycSubmissionDate ? `${Math.floor((Date.now() - new Date(u.kycSubmissionDate).getTime()) / (1000 * 60 * 60 * 24))} days pending` : 'Action Required'}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-6 text-gray-400 text-sm">{u.email}</td>
+                          <td className="px-6 py-6">
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${u.role === 'admin' ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'}`}>
+                              {u.role}
+                            </span>
+                          </td>
+                          <td className="px-6 py-6">
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${u.accountStatus === 'suspended' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-green-500/10 text-green-500 border-green-500/20'}`}>
+                              {u.accountStatus || 'active'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-6">
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${u.kycStatus === 'approved' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                              u.kycStatus === 'rejected' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                                u.kycStatus === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
+                                  'bg-gray-500/10 text-gray-500 border-gray-500/20'
+                              }`}>
+                              {u.kycStatus || 'Not Submitted'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-6 text-right flex justify-end gap-2">
                             <button
-                              onClick={() => {
-                                console.log("Review button clicked for user:", u.id);
-                                setSelectedKYCUser(u);
-                              }}
-                              className="bg-purple-600 text-white hover:bg-purple-700 px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-glow border border-purple-500"
+                              onClick={() => setViewingUser(u)}
+                              className="bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg text-gray-400 hover:text-white transition-all border border-brand-border"
+                              title="View Profile"
                             >
-                              Review Docs
+                              <span className="material-symbols-outlined text-[18px]">visibility</span>
                             </button>
-                          )}
-                          {u.kycStatus === 'approved' && (
-                            <span className="text-gray-500 text-[10px] font-black uppercase">Verified</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                            {u.kycStatus === 'pending' && (
+                              <button
+                                onClick={() => {
+                                  console.log("Review button clicked for user:", u.id);
+                                  setSelectedKYCUser(u);
+                                }}
+                                className="bg-purple-600 text-white hover:bg-purple-700 px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-glow border border-purple-500"
+                              >
+                                Review Docs
+                              </button>
+                            )}
+                            {u.kycStatus === 'approved' && (
+                              <span className="text-gray-500 text-[10px] font-black uppercase flex items-center h-full">Verified</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
                     {allUsers.length === 0 && ( /* Fallback if no users loaded */
-                      <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">No users found. (Ensure you are logged in as Admin and Firestore sync is active)</td></tr>
+                      <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">No users found. (Ensure you are logged in as Admin and Firestore sync is active)</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -694,31 +1099,93 @@ export default function AdminDashboard() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                <div className="bg-black/40 rounded-xl p-4 border border-white/10">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Front Side</p>
+                <div className="bg-black/40 rounded-xl p-4 border border-white/10 relative group">
+                  <div className="flex justify-between items-center mb-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Front Side</p>
+                    {selectedKYCUser.kycDocuments?.front && (
+                      <a
+                        href={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.front}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white/10 hover:bg-white/20 p-2 rounded-lg text-white transition-all flex items-center gap-1 text-[10px] font-bold uppercase"
+                        download
+                      >
+                        <span className="material-symbols-outlined text-sm">download</span> Download
+                      </a>
+                    )}
+                  </div>
                   {selectedKYCUser.kycDocuments?.front ? (
-                    <img
-                      src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.front}`}
-                      className="w-full h-auto rounded-lg cursor-zoom-in hover:brightness-110 transition-all"
-                      alt="ID Front"
-                      onClick={() => setZoomedImage(`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.front}`)}
-                    />
+                    <div className="relative overflow-hidden rounded-lg">
+                      <img
+                        src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.front}`}
+                        className="w-full h-auto rounded-lg cursor-zoom-in group-hover:scale-105 transition-transform duration-500"
+                        alt="ID Front"
+                        onClick={() => setZoomedImage(`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.front}`)}
+                      />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                        <span className="text-white text-xs font-bold uppercase tracking-widest flex items-center gap-2"><span className="material-symbols-outlined">zoom_in</span> Click to Zoom</span>
+                      </div>
+                    </div>
                   ) : (
                     <div className="h-48 flex items-center justify-center text-gray-600 italic">No document uploaded</div>
                   )}
                 </div>
-                <div className="bg-black/40 rounded-xl p-4 border border-white/10">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Back Side</p>
+                <div className="bg-black/40 rounded-xl p-4 border border-white/10 relative group">
+                  <div className="flex justify-between items-center mb-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Back Side</p>
+                    {selectedKYCUser.kycDocuments?.back && (
+                      <a
+                        href={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.back}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white/10 hover:bg-white/20 p-2 rounded-lg text-white transition-all flex items-center gap-1 text-[10px] font-bold uppercase"
+                        download
+                      >
+                        <span className="material-symbols-outlined text-sm">download</span> Download
+                      </a>
+                    )}
+                  </div>
                   {selectedKYCUser.kycDocuments?.back ? (
-                    <img
-                      src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.back}`}
-                      className="w-full h-auto rounded-lg cursor-zoom-in hover:brightness-110 transition-all"
-                      alt="ID Back"
-                      onClick={() => setZoomedImage(`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.back}`)}
-                    />
+                    <div className="relative overflow-hidden rounded-lg">
+                      <img
+                        src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.back}`}
+                        className="w-full h-auto rounded-lg cursor-zoom-in group-hover:scale-105 transition-transform duration-500"
+                        alt="ID Back"
+                        onClick={() => setZoomedImage(`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/kyc-documents/${selectedKYCUser.kycDocuments.back}`)}
+                      />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                        <span className="text-white text-xs font-bold uppercase tracking-widest flex items-center gap-2"><span className="material-symbols-outlined">zoom_in</span> Click to Zoom</span>
+                      </div>
+                    </div>
                   ) : (
                     <div className="h-48 flex items-center justify-center text-gray-600 italic">No document uploaded</div>
                   )}
+                </div>
+              </div>
+
+              <div className="bg-white/5 rounded-xl p-6 border border-white/5 mb-8">
+                <h4 className="text-sm font-bold text-white mb-4">Applicant Details</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-[10px] uppercase text-gray-500 font-black tracking-widest">Full Name</p>
+                    <p className="text-white text-sm">{selectedKYCUser.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase text-gray-500 font-black tracking-widest">Email</p>
+                    <p className="text-white text-sm">{selectedKYCUser.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase text-gray-500 font-black tracking-widest">Submitted On</p>
+                    <p className="text-white text-sm">{selectedKYCUser.kycSubmissionDate ? new Date(selectedKYCUser.kycSubmissionDate).toLocaleDateString() : 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase text-gray-500 font-black tracking-widest">Pending Since</p>
+                    <p className="text-yellow-500 text-sm font-bold">
+                      {selectedKYCUser.kycSubmissionDate
+                        ? `${Math.floor((Date.now() - new Date(selectedKYCUser.kycSubmissionDate).getTime()) / (1000 * 60 * 60 * 24))} Days`
+                        : 'N/A'}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -778,22 +1245,50 @@ export default function AdminDashboard() {
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setViewingUser(null)} />
             <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[90vh]">
-              <div className="flex justify-between items-center mb-8">
-                <div>
-                  <h2 className="text-2xl font-display font-bold text-white">{viewingUser.name}</h2>
-                  <p className="text-sm text-gray-500">{viewingUser.email}</p>
-                  <div className="flex gap-2 mt-2">
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${viewingUser.role === 'admin' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' : 'bg-blue-500/10 text-blue-500 border-blue-500/20'}`}>
-                      {viewingUser.role}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${viewingUser.kycStatus === 'approved' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-gray-500/10 text-gray-500 border-gray-500/20'}`}>
-                      {viewingUser.kycStatus || 'No KYC'}
-                    </span>
+              <div className="flex justify-between items-start mb-8">
+                <div className="flex gap-4">
+                  <div className="w-16 h-16 rounded-full bg-brand-primary/20 flex items-center justify-center text-brand-primary text-2xl font-bold">
+                    {viewingUser.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-display font-bold text-white">{viewingUser.name}</h2>
+                    <p className="text-sm text-gray-500">{viewingUser.email}</p>
+                    <div className="flex gap-2 mt-2">
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${viewingUser.role === 'admin' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' : 'bg-blue-500/10 text-blue-500 border-blue-500/20'}`}>
+                        {viewingUser.role}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${viewingUser.kycStatus === 'approved' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-gray-500/10 text-gray-500 border-gray-500/20'}`}>
+                        {viewingUser.kycStatus || 'No KYC'}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${viewingUser.accountStatus === 'suspended' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-green-500/10 text-green-500 border-green-500/20'}`}>
+                        {viewingUser.accountStatus || 'Active'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <button onClick={() => setViewingUser(null)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-all">
-                  <span className="material-symbols-outlined">close</span>
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const newStatus = viewingUser.accountStatus === 'suspended' ? 'active' : 'suspended';
+                      if (confirm(`Are you sure you want to ${newStatus === 'suspended' ? 'SUSPEND' : 'ACTIVATE'} this user?`)) {
+                        updateUserStatus(viewingUser.id, newStatus);
+                        setViewingUser({ ...viewingUser, accountStatus: newStatus });
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all border ${viewingUser.accountStatus === 'suspended' ? 'bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20'}`}
+                  >
+                    {viewingUser.accountStatus === 'suspended' ? 'Activate Account' : 'Suspend Account'}
+                  </button>
+                  <button
+                    onClick={() => alert("Password reset link sent to " + viewingUser.email)}
+                    className="bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg text-gray-400 hover:text-white transition-all border border-brand-border text-xs font-bold uppercase tracking-wider"
+                  >
+                    Reset Password
+                  </button>
+                  <button onClick={() => setViewingUser(null)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-all ml-2">
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
               </div>
 
               {/* Stats Grid */}
@@ -812,14 +1307,71 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                {/* Contact & Addresses */}
+                <div>
+                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-brand-primary">badge</span> Personal Info</h3>
+                  <div className="bg-black/20 p-6 rounded-xl border border-white/5 space-y-4">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wider font-bold">Details</p>
+                      <p className="text-white mt-1">Joined: {new Date(viewingUser.joinedDate || Date.now()).toLocaleDateString()}</p>
+                      <p className="text-white">Phone: {viewingUser.addresses?.[0]?.phone || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wider font-bold mb-2">Saved Addresses</p>
+                      {viewingUser.addresses?.map((addr, idx) => (
+                        <div key={idx} className="mb-2 last:mb-0 p-3 bg-white/5 rounded-lg text-sm text-gray-300">
+                          <p className="font-bold text-white">{addr.label} {addr.isDefault && <span className="text-[9px] bg-brand-primary/20 text-brand-primary px-1 rounded ml-2">DEFAULT</span>}</p>
+                          <p>{addr.address}, {addr.city}</p>
+                          <p>{addr.state} - {addr.pincode}</p>
+                        </div>
+                      )) || <p className="text-gray-500 italic">No addresses saved.</p>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* KYC Info */}
+                <div>
+                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-brand-primary">verified_user</span> KYC Information</h3>
+                  <div className="bg-black/20 p-6 rounded-xl border border-white/5">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="text-sm text-gray-400">Current Status</span>
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${viewingUser.kycStatus === 'approved' ? 'bg-green-500/10 text-green-500 border-green-500/20' : viewingUser.kycStatus === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' : 'bg-gray-500/10 text-gray-500 border-gray-500/20'}`}>
+                        {viewingUser.kycStatus || 'Not Submitted'}
+                      </span>
+                    </div>
+                    {viewingUser.kycVerifiedDate && <p className="text-xs text-gray-500 mb-4">Verified on: {new Date(viewingUser.kycVerifiedDate).toLocaleDateString()}</p>}
+
+                    {viewingUser.kycStatus === 'pending' && (
+                      <button
+                        onClick={() => {
+                          setViewingUser(null);
+                          setSelectedKYCUser(viewingUser);
+                        }}
+                        className="w-full bg-purple-600 text-white hover:bg-purple-700 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-glow"
+                      >
+                        Review Documents Now
+                      </button>
+                    )}
+                    {viewingUser.kycDocuments && (
+                      <div className="mt-4 flex gap-4">
+                        <span className="text-xs text-gray-400 flex items-center gap-1"><span className="material-symbols-outlined text-sm">description</span> Front ID Submitted</span>
+                        <span className="text-xs text-gray-400 flex items-center gap-1"><span className="material-symbols-outlined text-sm">description</span> Back ID Submitted</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Order History */}
-              <h3 className="text-lg font-bold text-white mb-4">Order History</h3>
-              <div className="bg-black/20 rounded-xl overflow-hidden border border-white/5">
+              <h3 className="text-lg font-bold text-white mb-4">Order & Rental History</h3>
+              <div className="bg-black/20 rounded-xl overflow-hidden border border-white/5 mb-8">
                 <table className="w-full text-left">
                   <thead className="bg-white/5">
                     <tr className="text-[9px] text-gray-500 font-black uppercase tracking-widest">
                       <th className="px-6 py-4">ID</th>
                       <th className="px-6 py-4">Date</th>
+                      <th className="px-6 py-4">Type</th>
                       <th className="px-6 py-4">Items</th>
                       <th className="px-6 py-4">Total</th>
                       <th className="px-6 py-4">Status</th>
@@ -830,6 +1382,11 @@ export default function AdminDashboard() {
                       <tr key={order.id} className="hover:bg-white/5 transition-colors">
                         <td className="px-6 py-4 text-xs font-mono text-gray-400">{order.id}</td>
                         <td className="px-6 py-4 text-xs text-white">{order.date}</td>
+                        <td className="px-6 py-4">
+                          <span className={`text-[9px] font-black uppercase px-2 py-1 rounded border ${order.items.some(i => i.type === 'rent') ? 'text-blue-400 border-blue-400/20 bg-blue-400/10' : 'text-green-400 border-green-400/20 bg-green-400/10'}`}>
+                            {order.items.some(i => i.type === 'rent') ? 'RENTAL' : 'BUY'}
+                          </span>
+                        </td>
                         <td className="px-6 py-4 text-xs text-gray-400 max-w-[200px] truncate">
                           {order.items.map(i => `${i.name} (x${i.quantity})`).join(', ')}
                         </td>
@@ -842,11 +1399,44 @@ export default function AdminDashboard() {
                       </tr>
                     ))}
                     {(!viewingUser.orders || viewingUser.orders.length === 0) && (
-                      <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No orders found.</td></tr>
+                      <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No orders found.</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
+
+              {/* Support Tickets */}
+              <h3 className="text-lg font-bold text-white mb-4">Support Tickets</h3>
+              <div className="bg-black/20 rounded-xl overflow-hidden border border-white/5">
+                <table className="w-full text-left">
+                  <thead className="bg-white/5">
+                    <tr className="text-[9px] text-gray-500 font-black uppercase tracking-widest">
+                      <th className="px-6 py-4">ID</th>
+                      <th className="px-6 py-4">Subject</th>
+                      <th className="px-6 py-4">Date</th>
+                      <th className="px-6 py-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {viewingUser.tickets?.map(ticket => (
+                      <tr key={ticket.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4 text-xs font-mono text-gray-400">{ticket.id}</td>
+                        <td className="px-6 py-4 text-xs text-white font-bold">{ticket.subject}</td>
+                        <td className="px-6 py-4 text-xs text-gray-400">{ticket.date}</td>
+                        <td className="px-6 py-4">
+                          <span className="px-2 py-1 rounded-full bg-white/10 text-[9px] font-bold uppercase tracking-wider text-gray-300">
+                            {ticket.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {(!viewingUser.tickets || viewingUser.tickets.length === 0) && (
+                      <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">No tickets found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
             </div>
           </div>
         )

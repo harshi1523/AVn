@@ -5,6 +5,7 @@ import { GoogleGenAI } from "@google/genai";
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, updateProfile, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, collection, deleteDoc } from "firebase/firestore";
+import { getStorage, ref, deleteObject } from "firebase/storage";
 import { Notification, Address, CartItem, Order, Ticket, User, FinanceStats } from './types';
 
 // Re-export for compatibility if needed, or just let components import from here if they did. 
@@ -42,7 +43,8 @@ interface StoreContextType {
   toggleCart: (isOpen: boolean) => void;
   toggleAuth: (isOpen: boolean) => void;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
-  updateTicketStatus: (ticketId: string, status: Ticket['status']) => void;
+  updateTicketStatus: (ticketId: string, status: Ticket['status']) => Promise<void>;
+  updateUserStatus: (userId: string, status: 'active' | 'suspended') => Promise<void>;
   updateKYCStatus: (userId: string, status: User['kycStatus'], documents?: User['kycDocuments'], reason?: string) => Promise<string | void>;
   updateRentalPreferences: (prefs: User['rentalPreferences']) => Promise<void>;
   dismissNotification: (id: string) => void;
@@ -191,7 +193,8 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
           const newUser: User = {
             id: firebaseUser.uid,
             ...baseProfile,
-            role: 'customer',
+            ...baseProfile,
+            role: 'user',
             joinedDate: new Date().toISOString().split('T')[0],
             addresses: [],
             wishlist: [],
@@ -317,7 +320,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
         const newUser: User = {
           id: firebaseUser.uid,
           ...baseProfile,
-          role: 'customer',
+          role: 'user',
           joinedDate: new Date().toISOString().split('T')[0],
           addresses: [],
           wishlist: [],
@@ -347,7 +350,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
         id: userCredential.user.uid,
         name,
         email,
-        role: 'customer',
+        role: 'user',
         joinedDate: new Date().toISOString().split('T')[0],
         addresses: [],
         wishlist: [],
@@ -406,7 +409,38 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
   const deleteProduct = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'products', id));
+      // 1. Get Product Data (to find images)
+      const productRef = doc(db, 'products', id);
+      const productSnap = await getDoc(productRef);
+
+      if (productSnap.exists()) {
+        const productData = productSnap.data() as Product;
+
+        // 2. Delete Images from Storage
+        const storage = getStorage();
+        const imagesToDelete = [];
+        if (productData.image) imagesToDelete.push(productData.image);
+        if (productData.images && productData.images.length > 0) imagesToDelete.push(...productData.images);
+
+        // Helper to extract path from URL (if needed) or just pass ref from URL
+        // Firebase Storage refFromURL supports full HTTPS URLs
+
+        await Promise.all(imagesToDelete.map(async (imageUrl) => {
+          try {
+            // Check if it's a firebase storage URL
+            if (imageUrl.includes('firebasestorage')) {
+              const imageRef = ref(storage, imageUrl);
+              await deleteObject(imageRef);
+            }
+          } catch (err) {
+            console.warn("Failed to delete image:", imageUrl, err);
+            // Continue deleting product even if image delete fails
+          }
+        }));
+      }
+
+      // 3. Delete Document
+      await deleteDoc(productRef);
     } catch (error) {
       console.error("Error deleting product:", error);
       throw error;
@@ -550,12 +584,29 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     await updateDoc(userDocRef, { addresses: updatedAddresses });
   };
 
-  const updateOrderStatus = async (orderId: string, status: Order['status']) => {
+  const updateOrderStatus = async (orderId: string, status: Order['status'], trackingInfo?: Order['trackingInfo']) => {
     // Find usage in allUsers
     // Note: This relies on allUsers being populated (which is true for Admin)
     for (const u of allUsers) {
       if (u.orders?.some(o => o.id === orderId)) {
-        const updatedOrders = u.orders.map(o => o.id === orderId ? { ...o, status } : o);
+        const updatedOrders = u.orders.map(o => {
+          if (o.id === orderId) {
+            const newTimeline = o.timeline || [];
+            newTimeline.push({
+              status,
+              date: new Date().toISOString(),
+              note: trackingInfo ? `Tracking: ${trackingInfo.courier} - ${trackingInfo.trackingNumber}` : undefined
+            });
+
+            return {
+              ...o,
+              status,
+              timeline: newTimeline,
+              trackingInfo: trackingInfo || o.trackingInfo
+            };
+          }
+          return o;
+        });
 
         // Optimistic State Update for Admin
         setAllUsers(prev => prev.map(user => user.id === u.id ? { ...user, orders: updatedOrders } : user));
@@ -566,11 +617,25 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
         // Generate Email Notification via AI
         const order = u.orders.find(o => o.id === orderId);
-        if (order) generateAIEmail({ ...order, status }, 'update');
+        if (order) generateAIEmail({ ...order, status, trackingInfo }, 'update');
         return;
       }
     }
     console.error("Order not found for update:", orderId);
+  };
+
+  const updateOrderNotes = async (orderId: string, notes: Order['internalNotes']) => {
+    for (const u of allUsers) {
+      if (u.orders?.some(o => o.id === orderId)) {
+        const updatedOrders = u.orders.map(o => o.id === orderId ? { ...o, internalNotes: notes } : o);
+
+        setAllUsers(prev => prev.map(user => user.id === u.id ? { ...user, orders: updatedOrders } : user));
+
+        const userDocRef = doc(db, 'users', u.id);
+        await updateDoc(userDocRef, { orders: updatedOrders });
+        return;
+      }
+    }
   };
 
   const updateTicketStatus = async (ticketId: string, status: Ticket['status']) => {
@@ -584,6 +649,12 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       }
     }
     console.error("Ticket not found for update:", ticketId);
+  };
+
+  const updateUserStatus = async (userId: string, status: 'active' | 'suspended') => {
+    setAllUsers(prev => prev.map(user => user.id === userId ? { ...user, accountStatus: status } : user));
+    const userDocRef = doc(db, 'users', userId);
+    await updateDoc(userDocRef, { accountStatus: status });
   };
 
   const refreshProfile = async () => {
@@ -604,6 +675,13 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     // Create update object
     const updateData: any = { kycStatus: status };
     if (documents) updateData.kycDocuments = documents;
+
+    // Log Admin Action and Timestamp
+    if (status === 'approved' || status === 'rejected') {
+      updateData.kycVerifiedDate = new Date().toISOString();
+      if (user?.id) updateData.kycVerifiedBy = user.id; // Log the admin who performed the action
+    }
+
     if (reason) updateData.kycRejectionReason = reason;
 
     // --- AUTOMATIC ORDER PLACEMENT LOGIC ---
@@ -701,7 +779,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     <StoreContext.Provider value={{
       user, setUser, cart, orders, tickets, wishlist, allUsers, finance, products, notifications, isCartOpen, isAuthOpen, isDBReady,
       login, loginWithGoogle, signup, logout, resetPassword, addProduct, updateProduct, deleteProduct, addToCart, updateQuantity, removeFromCart, placeOrder, addTicket, toggleWishlist,
-      toggleCart: setIsCartOpen, toggleAuth: setIsAuthOpen, updateOrderStatus, updateTicketStatus, updateKYCStatus, dismissNotification,
+      toggleCart: setIsCartOpen, toggleAuth: setIsAuthOpen, updateOrderStatus, updateTicketStatus, updateKYCStatus, updateUserStatus, dismissNotification,
       addAddress, removeAddress, updateRentalPreferences, savePendingCheckout, refreshProfile
     }}>
       {children}
