@@ -1,6 +1,12 @@
+:root {
+  --color-dark-page: #1e1e1e;
+  --color-text-primary: #F9FAFB;
+  --color-brand-accent: #FB641B;
+}
+
 body {
-  background-color: #1e1e1e;
-  color: #F9FAFB;
+  background-color: var(--color-dark-page);
+  color: var(--color-text-primary);
   font-family: 'Roboto', 'Inter', sans-serif;
 }
 
@@ -10,7 +16,7 @@ body {
   line-height: 1.4 !important;
   font-size: 1.5rem !important;
   margin-bottom: 1rem !important;
-  color: #F9FAFB !important;
+  color: var(--color-text-primary) !important;
 }
 
 .material-symbols-outlined {

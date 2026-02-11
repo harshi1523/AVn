@@ -17,7 +17,7 @@ export default function FAQ() {
 
       <div className="space-y-4">
         {faqs.map((faq, i) => (
-          <div key={i} className="bg-[#121212] border border-white/5 rounded-2xl overflow-hidden transition-all">
+          <div key={i} className="bg-dark-card border border-white/5 rounded-2xl overflow-hidden transition-all">
             <button
               onClick={() => setOpenIndex(openIndex === i ? null : i)}
               className="w-full flex justify-between items-center p-6 text-left hover:bg-white/5 transition-all"

@@ -15,7 +15,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
   const [docType, setDocType] = useState('Aadhaar Card');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  
+
   const [frontFile, setFrontFile] = useState<File | null>(null);
   const [backFile, setBackFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -38,7 +38,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
     if (!user) throw new Error("User not authenticated");
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.uid || 'guest'}/${docType.replace(/\s+/g, '_')}_${side}_${Date.now()}.${fileExt}`;
-    
+
     const { error } = await supabase.storage
       .from('kyc-documents')
       .upload(fileName, file);
@@ -49,58 +49,58 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
 
   const handleSubmit = async () => {
     if (!frontFile || !backFile) {
-        setUploadError("Please upload both front and back sides of the document.");
-        return;
+      setUploadError("Please upload both front and back sides of the document.");
+      return;
     }
 
     setIsSubmitting(true);
     setUploadError(null);
 
     try {
-        const [frontPath, backPath] = await Promise.all([
-            uploadToSupabase(frontFile, 'front'),
-            uploadToSupabase(backFile, 'back')
-        ]);
+      const [frontPath, backPath] = await Promise.all([
+        uploadToSupabase(frontFile, 'front'),
+        uploadToSupabase(backFile, 'back')
+      ]);
 
-        if (user) {
-            await updateKYCStatus(user.id, 'pending', {
-                front: frontPath,
-                back: backPath,
-                type: docType
-            });
-        }
-        
-        setIsSuccess(true);
-        // Wait a moment before redirecting or leave it to user to click 'Continue'
-        // But per request: "wait for approve". So we show a success/pending state.
-        
+      if (user) {
+        await updateKYCStatus(user.id, 'pending', {
+          front: frontPath,
+          back: backPath,
+          type: docType
+        });
+      }
+
+      setIsSuccess(true);
+      // Wait a moment before redirecting or leave it to user to click 'Continue'
+      // But per request: "wait for approve". So we show a success/pending state.
+
     } catch (error: any) {
-        console.error("Upload error:", error);
-        setUploadError(error.message || "Failed to upload documents. Please try again.");
+      console.error("Upload error:", error);
+      setUploadError(error.message || "Failed to upload documents. Please try again.");
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
   if (isSuccess) {
-      return (
-        <div className="min-h-screen bg-brand-page flex items-center justify-center p-6 text-center">
-            <div className="max-w-md w-full bg-[#1C1F26] border border-brand-primary/20 rounded-3xl p-8 shadow-glow animate-in zoom-in duration-300">
-                <div className="w-20 h-20 bg-brand-primary/20 rounded-full flex items-center justify-center mx-auto mb-6 text-brand-primary">
-                    <span className="material-symbols-outlined text-4xl">hourglass_top</span>
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-2">Documents Submitted</h2>
-                <p className="text-white/60 mb-8 leading-relaxed">
-                    Your KYC documents have been securely uploaded. Our team will verify them shortly (usually within 24 hours). 
-                    <br/><br/>
-                    Status: <span className="text-brand-warning font-bold uppercase tracking-wider">Pending Approval</span>
-                </p>
-                <button onClick={onComplete} className="w-full bg-cta-gradient text-white font-bold py-4 rounded-xl">
-                    Back to Dashboard
-                </button>
-            </div>
+    return (
+      <div className="min-h-screen bg-brand-page flex items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-[#1C1F26] border border-brand-primary/20 rounded-3xl p-8 shadow-glow animate-in zoom-in duration-300">
+          <div className="w-20 h-20 bg-brand-primary/20 rounded-full flex items-center justify-center mx-auto mb-6 text-brand-primary">
+            <span className="material-symbols-outlined text-4xl">hourglass_top</span>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Documents Submitted</h2>
+          <p className="text-white/60 mb-8 leading-relaxed">
+            Your KYC documents have been securely uploaded. Our team will verify them shortly (usually within 24 hours).
+            <br /><br />
+            Status: <span className="text-brand-warning font-bold uppercase tracking-wider">Pending Approval</span>
+          </p>
+          <button onClick={onComplete} className="w-full bg-cta-gradient text-white font-bold py-4 rounded-xl">
+            Back to Dashboard
+          </button>
         </div>
-      );
+      </div>
+    );
   }
 
   return (
@@ -127,8 +127,8 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
         <div className="mb-10">
           <div className="flex justify-between mb-4">
             {steps.map((s) => (
-              <span 
-                key={s.id} 
+              <span
+                key={s.id}
                 className={`text-[10px] font-black tracking-widest uppercase transition-colors ${step === s.id ? 'text-brand-primary' : 'text-gray-600'}`}
               >
                 {s.label}
@@ -136,9 +136,8 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
             ))}
           </div>
           <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden flex">
-            <div className={`h-full bg-brand-primary transition-all duration-700 shadow-glow ${
-              step === 'personal' ? 'w-1/3' : step === 'documents' ? 'w-2/3' : 'w-full'
-            }`} />
+            <div className={`h-full bg-brand-primary transition-all duration-700 shadow-glow ${step === 'personal' ? 'w-1/3' : step === 'documents' ? 'w-2/3' : 'w-full'
+              }`} />
           </div>
         </div>
 
@@ -159,10 +158,10 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
         <div className="space-y-4 mb-8">
           <label className="block text-sm font-bold text-white">Select Document Type</label>
           <div className="relative">
-            <select 
+            <select
               value={docType}
               onChange={(e) => setDocType(e.target.value)}
-              className="w-full bg-[#1C1F26] border border-white/10 rounded-2xl p-4 text-white appearance-none focus:outline-none focus:border-brand-primary transition-colors text-sm font-medium"
+              className="w-full bg-dark-card border border-white/10 rounded-2xl p-4 text-white appearance-none focus:outline-none focus:border-brand-primary transition-colors text-sm font-medium"
             >
               <option>Aadhaar Card</option>
               <option>PAN Card</option>
@@ -204,12 +203,12 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
             </label>
           </div>
         </div>
-        
+
         {uploadError && (
-            <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-4 rounded-xl text-sm mb-6 flex items-center gap-3">
-                <span className="material-symbols-outlined">error</span>
-                {uploadError}
-            </div>
+          <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-4 rounded-xl text-sm mb-6 flex items-center gap-3">
+            <span className="material-symbols-outlined">error</span>
+            {uploadError}
+          </div>
         )}
 
         {/* Information Notice */}
@@ -222,7 +221,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
 
         {/* Actions */}
         <div className="flex flex-col gap-6">
-          <button 
+          <button
             onClick={handleSubmit}
             disabled={isSubmitting}
             className="w-full bg-cta-gradient text-white font-black py-5 rounded-2xl shadow-glow hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -238,7 +237,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
           </button>
         </div>
       </main>
-      
+
       {/* Decorative Brand Sparkle */}
       <div className="fixed bottom-6 right-6 opacity-20 pointer-events-none">
         <span className="material-symbols-outlined text-4xl text-white">auto_awesome</span>

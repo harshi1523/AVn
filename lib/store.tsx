@@ -712,6 +712,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     const updatedAddresses = [...(user.addresses || []), newAddr];
     const userDocRef = doc(db, 'users', user.id);
     await updateDoc(userDocRef, { addresses: updatedAddresses });
+    return newAddr.id; // Return the new address ID
   };
 
 

@@ -17,25 +17,25 @@ export default function CartDrawer({ onCheckout }: CartDrawerProps) {
   return (
     <div className="fixed inset-0 z-[60] flex justify-end">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         onClick={() => toggleCart(false)}
       />
 
       {/* Drawer Panel */}
-      <div className="relative w-full max-w-md bg-[#1a1a1a] h-full shadow-2xl border-l border-gray-800 flex flex-col animate-in slide-in-from-right duration-300">
-        
+      <div className="relative w-full max-w-md bg-dark-elevated h-full shadow-2xl border-l border-gray-800 flex flex-col animate-in slide-in-from-right duration-300">
+
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-800 bg-[#151515]">
+        <div className="flex items-center justify-between p-5 border-b border-gray-800 bg-dark-header">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             Your Cart <span className="text-sm font-normal text-gray-500">({cart.length} items)</span>
           </h2>
           <Tooltip text="Close Cart" position="bottom">
-            <button 
-                onClick={() => toggleCart(false)}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors text-white"
+            <button
+              onClick={() => toggleCart(false)}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors text-white"
             >
-                <span className="material-symbols-outlined">close</span>
+              <span className="material-symbols-outlined">close</span>
             </button>
           </Tooltip>
         </div>
@@ -44,84 +44,84 @@ export default function CartDrawer({ onCheckout }: CartDrawerProps) {
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center text-gray-500">
-                <span className="material-symbols-outlined text-6xl mb-4 opacity-50">shopping_cart_off</span>
-                <p className="text-lg font-medium">Your cart is empty</p>
-                <p className="text-sm mb-6">Looks like you haven't added anything yet.</p>
-                <button 
-                    onClick={() => toggleCart(false)}
-                    className="text-brand-primary hover:underline"
-                >
-                    Continue Shopping
-                </button>
+              <span className="material-symbols-outlined text-6xl mb-4 opacity-50">shopping_cart_off</span>
+              <p className="text-lg font-medium">Your cart is empty</p>
+              <p className="text-sm mb-6">Looks like you haven't added anything yet.</p>
+              <button
+                onClick={() => toggleCart(false)}
+                className="text-brand-primary hover:underline"
+              >
+                Continue Shopping
+              </button>
             </div>
           ) : (
             cart.map((item) => (
-                <div key={item.id} className="flex gap-4 bg-black/20 p-4 rounded-2xl border border-white/5 group relative hover:border-white/10 transition-colors">
-                    <div className="w-20 h-20 bg-white/5 rounded-xl flex-shrink-0 overflow-hidden border border-white/5">
-                        <img src={item.image} alt={item.name} className="w-full h-full object-contain p-2" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start mb-1">
-                            <h4 className="font-bold text-white truncate pr-2 text-sm uppercase tracking-tight">{item.name}</h4>
-                            <button 
-                                onClick={() => removeFromCart(item.id)}
-                                className="text-gray-500 hover:text-red-500 transition-colors"
-                            >
-                                <span className="material-symbols-outlined text-sm">delete</span>
-                            </button>
-                        </div>
-                        
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          <p className="text-[9px] text-gray-400 uppercase tracking-wider font-bold bg-white/5 px-2 py-0.5 rounded">
-                              {item.type === 'rent' ? `Rental • ${item.tenure}m` : 'Purchase'}
-                          </p>
-                          {item.variants?.ram && (
-                            <p className="text-[9px] text-brand-primary uppercase tracking-wider font-bold bg-brand-primary/10 px-2 py-0.5 rounded">
-                              {item.variants.ram}
-                            </p>
-                          )}
-                          {item.variants?.ssd && (
-                            <p className="text-[9px] text-brand-primary uppercase tracking-wider font-bold bg-brand-primary/10 px-2 py-0.5 rounded">
-                              {item.variants.ssd}
-                            </p>
-                          )}
-                        </div>
-                        
-                        {item.warranty && (
-                            <div className="flex items-center gap-1.5 mb-2">
-                                <span className="material-symbols-outlined text-[12px] text-brand-primary">verified</span>
-                                <span className="text-[9px] text-brand-primary font-black uppercase tracking-widest">{item.warranty.label}</span>
-                            </div>
-                        )}
-
-                        <p className="text-white font-bold text-lg">
-                            ₹{item.price.toLocaleString()}
-                        </p>
-                    </div>
+              <div key={item.id} className="flex gap-4 bg-black/20 p-4 rounded-2xl border border-white/5 group relative hover:border-white/10 transition-colors">
+                <div className="w-20 h-20 bg-white/5 rounded-xl flex-shrink-0 overflow-hidden border border-white/5">
+                  <img src={item.image} alt={item.name} className="w-full h-full object-contain p-2" />
                 </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start mb-1">
+                    <h4 className="font-bold text-white truncate pr-2 text-sm uppercase tracking-tight">{item.name}</h4>
+                    <button
+                      onClick={() => removeFromCart(item.id)}
+                      className="text-gray-500 hover:text-red-500 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-sm">delete</span>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <p className="text-[9px] text-gray-400 uppercase tracking-wider font-bold bg-white/5 px-2 py-0.5 rounded">
+                      {item.type === 'rent' ? `Rental • ${item.tenure}m` : 'Purchase'}
+                    </p>
+                    {item.variants?.ram && (
+                      <p className="text-[9px] text-brand-primary uppercase tracking-wider font-bold bg-brand-primary/10 px-2 py-0.5 rounded">
+                        {item.variants.ram}
+                      </p>
+                    )}
+                    {item.variants?.ssd && (
+                      <p className="text-[9px] text-brand-primary uppercase tracking-wider font-bold bg-brand-primary/10 px-2 py-0.5 rounded">
+                        {item.variants.ssd}
+                      </p>
+                    )}
+                  </div>
+
+                  {item.warranty && (
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="material-symbols-outlined text-[12px] text-brand-primary">verified</span>
+                      <span className="text-[9px] text-brand-primary font-black uppercase tracking-widest">{item.warranty.label}</span>
+                    </div>
+                  )}
+
+                  <p className="text-white font-bold text-lg">
+                    ₹{item.price.toLocaleString()}
+                  </p>
+                </div>
+              </div>
             ))
           )}
         </div>
 
         {/* Footer */}
         {cart.length > 0 && (
-            <div className="p-5 border-t border-gray-800 bg-[#151515] space-y-4">
-                <div className="flex justify-between items-center text-lg font-bold text-white">
-                    <span>Subtotal</span>
-                    <span>₹{total.toLocaleString()}</span>
-                </div>
-                <p className="text-xs text-gray-500 text-center">Shipping & taxes calculated at checkout</p>
-                <button 
-                    onClick={() => {
-                        toggleCart(false);
-                        onCheckout();
-                    }}
-                    className="w-full bg-cta-gradient hover:brightness-110 text-white font-black py-4 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-3 shadow-glow text-xs uppercase tracking-[0.3em]"
-                >
-                    Checkout
-                    <span className="material-symbols-outlined text-sm">shopping_cart_checkout</span>
-                </button>
+          <div className="p-5 border-t border-gray-800 bg-dark-header space-y-4">
+            <div className="flex justify-between items-center text-lg font-bold text-white">
+              <span>Subtotal</span>
+              <span>₹{total.toLocaleString()}</span>
             </div>
+            <p className="text-xs text-gray-500 text-center">Shipping & taxes calculated at checkout</p>
+            <button
+              onClick={() => {
+                toggleCart(false);
+                onCheckout();
+              }}
+              className="w-full bg-cta-gradient hover:brightness-110 text-white font-black py-4 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-3 shadow-glow text-xs uppercase tracking-[0.3em]"
+            >
+              Checkout
+              <span className="material-symbols-outlined text-sm">shopping_cart_checkout</span>
+            </button>
+          </div>
         )}
       </div>
     </div>

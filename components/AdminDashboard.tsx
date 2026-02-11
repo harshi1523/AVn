@@ -537,8 +537,8 @@ export default function AdminDashboard() {
               {/* Order Detail Modal */}
               {selectedOrder && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedOrder(null)}>
-                  <div className="bg-[#0a0a0a] border border-white/10 rounded-[2rem] w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-                    <div className="p-8 border-b border-white/5 flex justify-between items-start sticky top-0 bg-[#0a0a0a]/95 backdrop-blur z-10">
+                  <div className="bg-dark-modal border border-white/10 rounded-[2rem] w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+                    <div className="p-8 border-b border-white/5 flex justify-between items-start sticky top-0 bg-dark-modal/95 backdrop-blur z-10">
                       <div>
                         <h2 className="text-2xl font-bold text-white mb-1">Order Details</h2>
                         <p className="text-sm text-gray-500 font-mono">#{selectedOrder.id}</p>
@@ -1970,8 +1970,8 @@ export default function AdminDashboard() {
                                   </p>
                                 </div>
                                 <div className={`inline-block p-3 rounded-lg ${msg.senderRole === 'admin'
-                                    ? 'bg-brand-primary/10 border border-brand-primary/20'
-                                    : 'bg-white/10 border border-white/5'
+                                  ? 'bg-brand-primary/10 border border-brand-primary/20'
+                                  : 'bg-white/10 border border-white/5'
                                   }`}>
                                   <p className="text-sm text-white whitespace-pre-wrap">{msg.message}</p>
                                 </div>

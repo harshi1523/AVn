@@ -1,0 +1,40 @@
+{
+    "content": [
+        "./components/**/*.{js,ts,jsx,tsx}",
+        "./app/**/*.{js,ts,jsx,tsx}"
+    ],
+    "theme": {
+        "extend": {
+            "colors": {
+                "brand": {
+                    "primary": "#2563EB",
+                    "accent": "#FB641B",
+                    "success": "#10B981",
+                    "warning": "#F59E0B",
+                    "error": "#EF4444"
+                },
+                "dark": {
+                    "page": "#1e1e1e",
+                    "card": "#121212",
+                    "elevated": "#1a1a1a",
+                    "header": "#151515",
+                    "sidebar": "#050505",
+                    "modal": "#0a0a0a",
+                    "border": "rgba(255, 255, 255, 0.1)"
+                },
+                "light": {
+                    "page": "#F1F3F6",
+                    "card": "#FFFFFF",
+                    "border": "#E5E7EB"
+                },
+                "text": {
+                    "primary": "#F9FAFB",
+                    "secondary": "rgba(255, 255, 255, 0.6)",
+                    "dark": "#111827"
+                },
+                "whatsapp": "#25D366"
+            }
+        }
+    },
+    "plugins": []
+}
