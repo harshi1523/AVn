@@ -41,5 +41,41 @@ The app utilizes the `@google/genai` SDK to interface with:
 - **API Key:** Requires a valid Google Gemini API Key provided via `process.env.API_KEY`.
 - **Environment:** Designed for modern browsers with ES6 module support.
 
+## 🎨 Color Palette
+
+The application uses a carefully crafted dark theme color system with purple accents:
+
+### Primary Colors
+- **Primary:** `#D946EF` - Main brand color (Purple/Magenta)
+- **Primary Hover:** `#C026D3` - Darker purple for hover states
+- **Secondary:** `#A855F7` - Secondary purple accent
+
+### Background Colors
+- **Page Background:** `#1e1e1e` - Main page background
+- **Section Background:** `#161A20` - Section containers
+- **Card Background:** `#161A20` - Card components
+- **Elevated Background:** `#1C1F26` - Elevated elements
+
+### Border & Divider Colors
+- **Border:** `#242833` - Standard borders
+- **Input Border:** `#242833` - Form input borders
+- **Divider:** `#242833` - Section dividers
+
+### Text Colors
+- **Primary Text:** `#F9FAFB` - Main text color (white)
+- **Secondary Text:** `#A1A1AA` - Secondary text
+- **Muted Text:** `#A1A1AA` - Muted/disabled text
+
+### Status Colors
+- **Success:** `#10B981` - Success states (green)
+- **Warning:** `#F59E0B` - Warning states (orange)
+- **Error:** `#EF4444` - Error states (red)
+- **Rating:** `#FACC15` - Star ratings (yellow)
+
+### Special Effects
+- **Glow Shadow:** `rgba(217, 70, 239, 0.25)` - Purple glow effect
+- **Hero Gradient:** `linear-gradient(135deg, #1e1e1e, #2e1065, #1e1e1e)`
+- **CTA Gradient:** `linear-gradient(135deg, #D946EF, #A855F7)`
+
 ---
 *Built as a world-class senior frontend engineer project focusing on performance, accessibility, and high-end design.*

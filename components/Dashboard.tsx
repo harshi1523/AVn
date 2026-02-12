@@ -11,7 +11,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
-    const { user, orders, tickets, addTicket, logout, updateRentalPreferences, refreshProfile, removeAddress, setDefaultAddress } = useStore();
+    const { user, orders, tickets, addTicket, logout, updateRentalPreferences, refreshProfile, removeAddress, setDefaultAddress, updateOrderStatus } = useStore();
     const [activeTab, setActiveTab] = useState<'rentals' | 'orders' | 'support'>(initialTab);
     const [ticketSubject, setTicketSubject] = useState("");
     const [ticketDescription, setTicketDescription] = useState("");
@@ -24,6 +24,14 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
     const [upiId, setUpiId] = useState(user?.rentalPreferences?.upiId || '');
     const [selectedMethod, setSelectedMethod] = useState<'card' | 'upi' | 'net_banking'>('upi');
 
+    // Rental Management States
+    const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
+    const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+    const [selectedRental, setSelectedRental] = useState<{ orderId: string; item: any } | null>(null);
+    const [extensionMonths, setExtensionMonths] = useState(3);
+    const [returnReason, setReturnReason] = useState('');
+
     // Toast State
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error'; visible: boolean } | null>(null);
 
@@ -31,11 +39,39 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
         setToast({ message, type, visible: true });
     };
 
+    // Rental Management Handlers
+    const handleExtendRental = () => {
+        if (selectedRental) {
+            // TODO: Implement actual extension logic with backend
+            showToast(`Rental extended by ${extensionMonths} months successfully!`, 'success');
+            setIsExtendModalOpen(false);
+            setSelectedRental(null);
+            setExtensionMonths(3);
+        }
+    };
+
+    const handleRequestReturn = async () => {
+        if (selectedRental && returnReason.trim()) {
+            // Update order status to 'Return Requested' and add note
+            await updateOrderStatus(selectedRental.orderId, 'Return Requested', {
+                courier: 'Return Request',
+                trackingNumber: returnReason
+            });
+
+            showToast('Return request submitted successfully! Our team will contact you soon.', 'success');
+            setIsReturnModalOpen(false);
+            setSelectedRental(null);
+            setReturnReason('');
+        } else {
+            showToast('Please provide a reason for return', 'error');
+        }
+    };
+
     // Auto-fill form data when user data loads
     useEffect(() => {
         if (user?.rentalPreferences) {
             setUpiId(user.rentalPreferences.upiId || '');
-            setSelectedMethod(user.rentalPreferences.depositMethod || 'upi'); // Default to 'upi' if not set
+            setSelectedMethod(user.rentalPreferences.depositMethod || 'upi');
         }
     }, [user, isPaymentModalOpen]);
 
@@ -62,385 +98,444 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
     const pastOrders = orders;
 
     return (
-        <div className="mx-auto max-w-[1440px] px-4 py-8 md:px-8 animate-in fade-in duration-500">
-            <div className="flex flex-col md:flex-row gap-8">
+        <div className="min-h-screen bg-brand-page">
+            <div className="flex">
                 {/* Sidebar */}
-                <div className="w-full md:w-72 flex-shrink-0">
-                    <div className="bg-brand-card border border-brand-border rounded-[2rem] p-8 mb-6 shadow-xl relative overflow-hidden group">
-                        <div className="flex items-center gap-4 mb-8 relative z-10">
-                            <div className="w-14 h-14 rounded-2xl bg-brand-primary flex items-center justify-center text-white font-display font-bold text-2xl shadow-inner">
-                                {user.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="overflow-hidden">
-                                <h3 className="text-white font-bold truncate leading-tight">{user.name}</h3>
-                                <p className="text-xs text-brand-muted truncate mt-1">Customer</p>
-                            </div>
-                        </div>
-
-                        <nav className="flex flex-col gap-2 relative z-10">
+                <div className="w-64 min-h-screen bg-brand-card border-r border-brand-border flex flex-col">
+                    {/* Navigation */}
+                    <nav className="flex-1 p-4">
+                        <div className="space-y-1">
                             {[
-                                { id: 'rentals', label: 'My Rentals', icon: 'laptop_mac' },
-                                { id: 'orders', label: 'Order History', icon: 'history' },
-                                { id: 'support', label: 'Help & Support', icon: 'support_agent' }
+                                { id: 'rentals', label: 'Dashboard', icon: 'dashboard' },
+                                { id: 'orders', label: 'Order history', icon: 'history' }
                             ].map(tab => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
-                                    className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-brand-primary text-white shadow-lg' : 'text-brand-muted hover:text-white hover:bg-white/5'}`}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
+                                        ? 'bg-brand-primary text-white'
+                                        : 'text-brand-muted hover:bg-white/5 hover:text-white'
+                                        }`}
                                 >
-                                    <span className="material-symbols-outlined text-[20px]">{tab.icon}</span>
+                                    <span className="material-symbols-outlined text-xl">{tab.icon}</span>
                                     {tab.label}
                                 </button>
                             ))}
-                        </nav>
-                    </div>
 
-                    <button onClick={logout} className="w-full bg-brand-card/40 border border-brand-border text-red-400 hover:bg-red-400/10 py-4 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-2 group">
-                        <span className="material-symbols-outlined text-[20px]">logout</span>
-                        Logout
-                    </button>
+                            {/* My Rentals Menu Item */}
+                            <button
+                                onClick={() => setActiveTab('my-rentals' as any)}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeTab === 'my-rentals'
+                                    ? 'bg-brand-primary text-white'
+                                    : 'text-brand-muted hover:bg-white/5 hover:text-white'
+                                    }`}
+                            >
+                                <span className="material-symbols-outlined text-xl">devices</span>
+                                My Rentals ({activeRentals.length})
+                            </button>
+
+                            {/* Address Display */}
+                            <button
+                                onClick={() => setActiveTab('addresses' as any)}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeTab === 'addresses'
+                                    ? 'bg-brand-primary text-white'
+                                    : 'text-brand-muted hover:bg-white/5 hover:text-white'
+                                    }`}
+                            >
+                                <span className="material-symbols-outlined text-xl">location_on</span>
+                                Addresses ({user.addresses?.length || 0})
+                            </button>
+
+                            {[
+                                { id: 'support', label: 'Contact Us', icon: 'phone' }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id as any)}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
+                                        ? 'bg-brand-primary text-white'
+                                        : 'text-brand-muted hover:bg-white/5 hover:text-white'
+                                        }`}
+                                >
+                                    <span className="material-symbols-outlined text-xl">{tab.icon}</span>
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                    </nav>
+
+                    {/* Logout */}
+                    <div className="p-4 border-t border-brand-border">
+                        <button
+                            onClick={logout}
+                            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-400 hover:bg-red-400/10 transition-all"
+                        >
+                            <span className="material-symbols-outlined text-xl">logout</span>
+                            Log out
+                        </button>
+                    </div>
                 </div>
 
-                {/* Content Area */}
-                <div className="flex-1">
-                    <div className="flex items-center justify-between mb-8">
-                        <h1 className="text-2xl md:text-4xl text-white avn-heading">
-                            {activeTab === 'rentals' ? 'My Devices' : activeTab === 'orders' ? 'Order History' : 'Support Center'}
-                        </h1>
-                        <div className="text-brand-muted text-[10px] font-black uppercase tracking-[0.2em]">{new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</div>
+                {/* Main Content */}
+                <div className="flex-1 bg-brand-page p-8">
+                    {/* Header */}
+                    <div className="mb-8">
+                        <p className="text-sm text-brand-muted mb-2">
+                            Hello <span className="font-semibold text-white">{user.name}</span> (not {user.name}? <button onClick={logout} className="text-brand-primary hover:underline">Log out</button>)
+                        </p>
                     </div>
 
-                    {/* KYC Status Card */}
+                    {/* Account Details Card */}
                     {activeTab === 'rentals' && (
-                        <div className="mb-8">
-                            {!user.kycStatus || user.kycStatus === 'not_submitted' || user.kycStatus === 'reupload_required' ? (
-                                <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-brand-border rounded-[2rem] p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
-                                            <span className="material-symbols-outlined">verified_user</span>
-                                        </div>
-                                        <div>
-                                            <h3 className="text-white font-bold text-lg">Identity Verification Required</h3>
-                                            <p className="text-brand-muted text-sm">Verify your identity to start renting products.</p>
-                                            {user.kycStatus === 'reupload_required' && <p className="text-red-400 text-xs mt-1 font-bold">Action Required: Previous documents were invalid.</p>}
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } }))}
-                                        className="bg-white text-black hover:bg-gray-200 px-6 py-3 rounded-xl text-sm font-bold shadow-lg transition-all"
-                                    >
-                                        {user.kycStatus === 'reupload_required' ? 'Re-upload Documents' : 'Complete Verification'}
-                                    </button>
-                                </div>
-                            ) : user.kycStatus === 'pending' ? (
-                                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-[2rem] p-6 flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-500 animate-pulse">
-                                        <span className="material-symbols-outlined">hourglass_top</span>
+                        <div className="bg-brand-card border border-brand-border rounded-2xl p-8 mb-6 shadow-xl">
+                            <h2 className="text-2xl font-bold text-white mb-8">Account details</h2>
+
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-2 gap-x-12 gap-y-6">
+                                    <div>
+                                        <label className="text-sm font-semibold text-brand-muted block mb-2">Name</label>
+                                        <p className="text-white">{user.name}</p>
                                     </div>
                                     <div>
-                                        <h3 className="text-white font-bold text-lg">Verification in Progress</h3>
-                                        <div className="flex items-center gap-4">
-                                            <p className="text-brand-muted text-sm">Our team is reviewing your documents. This usually takes 24 hours.</p>
-                                            <button
-                                                onClick={() => refreshProfile()}
-                                                className="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1.5 rounded-lg border border-white/10 font-bold transition-all whitespace-nowrap"
-                                            >
-                                                Check Status
-                                            </button>
-                                        </div>
+                                        <label className="text-sm font-semibold text-brand-muted block mb-2">E-mail</label>
+                                        <p className="text-white">{user.email}</p>
                                     </div>
                                 </div>
-                            ) : user.kycStatus === 'approved' ? (
-                                (!user.addresses?.length || !user.rentalPreferences?.isOnboardingComplete) ? (
-                                    <div className="bg-brand-card border border-brand-border rounded-[2rem] p-6 mb-6">
-                                        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                                            <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Setup Required</p>
-                                            <div className="flex flex-col gap-3">
-                                                <div className="flex items-center justify-between">
-                                                    <span className={`text-sm ${user.addresses?.length ? 'text-green-400 line-through' : 'text-white'}`}>1. Add Delivery Address</span>
-                                                    {!user.addresses?.length && (
-                                                        <button onClick={() => setIsAddressModalOpen(true)} className="text-xs bg-white text-black px-3 py-1.5 rounded-lg font-bold">Add</button>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center justify-between">
-                                                    <span className={`text-sm ${user.rentalPreferences?.isOnboardingComplete ? 'text-green-400 line-through' : 'text-white'}`}>2. Set Payment Preference</span>
-                                                    {!user.rentalPreferences?.isOnboardingComplete && (
-                                                        <button
-                                                            onClick={() => setIsPaymentModalOpen(true)}
-                                                            className="text-xs bg-white text-black px-3 py-1.5 rounded-lg font-bold"
-                                                        >
-                                                            Set
-                                                        </button>
-                                                    )}
-                                                </div>
+
+                                {user.addresses && user.addresses.length > 0 && (
+                                    <>
+                                        <div>
+                                            <label className="text-sm font-semibold text-brand-muted block mb-2">Address 1</label>
+                                            <p className="text-white">{user.addresses[0].address}</p>
+                                        </div>
+                                        {user.addresses.length > 1 && (
+                                            <div>
+                                                <label className="text-sm font-semibold text-brand-muted block mb-2">Address 2</label>
+                                                <p className="text-white">{user.addresses[1].address}</p>
+                                            </div>
+                                        )}
+                                        <div className="grid grid-cols-2 gap-x-12 gap-y-6">
+                                            <div>
+                                                <label className="text-sm font-semibold text-brand-muted block mb-2">Country/region</label>
+                                                <p className="text-white">{user.addresses[0].state || 'India'}</p>
+                                            </div>
+                                            <div>
+                                                <label className="text-sm font-semibold text-brand-muted block mb-2">Postal/ZIP code</label>
+                                                <p className="text-white">{user.addresses[0].pincode}</p>
                                             </div>
                                         </div>
-                                    </div>
-                                ) : null
-                            ) : user.kycStatus === 'rejected' ? (
-                                <div className="bg-red-500/10 border border-red-500/20 rounded-[2rem] p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center text-red-500">
-                                            <span className="material-symbols-outlined">error</span>
-                                        </div>
                                         <div>
-                                            <h3 className="text-white font-bold text-lg">Verification Failed</h3>
-                                            <p className="text-brand-muted text-sm">Reason: <span className="text-white font-bold">{user.kycRejectionReason || 'Documents unclear or invalid'}</span></p>
+                                            <label className="text-sm font-semibold text-brand-muted block mb-2">Phone</label>
+                                            <p className="text-white">{user.addresses[0].phone}</p>
                                         </div>
-                                    </div>
-                                    <button
-                                        onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } }))}
-                                        className="bg-red-500 text-white hover:bg-red-600 px-6 py-3 rounded-xl text-sm font-bold shadow-lg transition-all"
-                                    >
-                                        Re-upload Documents
-                                    </button>
-                                </div>
-                            ) : null}
+                                    </>
+                                )}
+                            </div>
                         </div>
                     )}
 
-                    {/* Address Management Section */}
-                    {user.kycStatus === 'approved' && user.addresses && user.addresses.length > 0 && (
-                        <div className="bg-brand-card border border-brand-border rounded-[2rem] p-8 mb-6">
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-lg font-bold text-white">Saved Addresses</h3>
-                                <button
-                                    onClick={() => {
-                                        setEditingAddress(undefined);
-                                        setIsAddressModalOpen(true);
-                                    }}
-                                    className="text-xs bg-brand-primary text-white px-4 py-2 rounded-lg font-bold hover:bg-brand-primary/90 transition-all"
-                                >
-                                    + Add New
-                                </button>
+                    {/* Referral Card */}
+                    {activeTab === 'rentals' && (
+                        <div className="bg-gradient-to-r from-brand-primary to-purple-600 rounded-2xl shadow-xl p-8 text-white mb-6">
+                            <div className="flex items-start gap-6">
+                                <div className="w-16 h-16 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <span className="material-symbols-outlined text-4xl">card_giftcard</span>
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-xl font-bold mb-2">Refer to get ₹100 AvN DigiCash</h3>
+                                    <p className="text-sm opacity-90 mb-4">
+                                        Share referral link and your friend gets Flat 30% Off when they place their order and you get ₹100 AvN DigiCash once their order gets delivered!
+                                    </p>
+                                    <div className="bg-white/10 rounded-lg p-4 mb-4">
+                                        <p className="text-xs opacity-75 mb-2">Share your referral link via:</p>
+                                        <div className="flex items-center gap-2 bg-white rounded-lg px-4 py-2">
+                                            <input
+                                                type="text"
+                                                value="https://avntech.in/?referral_code=nylss27pj&utm_sour"
+                                                readOnly
+                                                className="flex-1 bg-transparent text-gray-900 text-sm outline-none"
+                                            />
+                                            <button className="text-brand-primary font-semibold text-sm hover:underline">
+                                                Copy
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <button className="w-full bg-white text-brand-primary py-3 rounded-lg font-semibold hover:bg-gray-100 transition-all flex items-center justify-center gap-2">
+                                        <span className="material-symbols-outlined">share</span>
+                                        Share invite link
+                                    </button>
+                                </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {user.addresses.map(addr => (
-                                    <div
-                                        key={addr.id}
-                                        className={`bg-black/20 border rounded-xl p-4 ${addr.isDefault ? 'border-brand-primary' : 'border-white/5'}`}
-                                    >
-                                        <div className="flex items-start justify-between mb-3">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xs font-bold uppercase tracking-widest text-brand-primary">
-                                                    {addr.label}
-                                                </span>
-                                                {addr.isDefault && (
-                                                    <span className="text-[10px] bg-brand-primary/20 text-brand-primary px-2 py-0.5 rounded-full font-bold">
-                                                        DEFAULT
-                                                    </span>
-                                                )}
+                        </div>
+                    )}
+
+                    {/* My Rentals Content */}
+                    {activeTab === 'my-rentals' && (
+                        <div className="bg-brand-card border border-brand-border rounded-2xl p-8 shadow-xl">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-xl font-bold text-white">My Rental Devices</h3>
+                                <span className="text-sm text-brand-muted">
+                                    {activeRentals.length} Active {activeRentals.length === 1 ? 'Rental' : 'Rentals'}
+                                </span>
+                            </div>
+                            {activeRentals.length > 0 ? (
+                                <div className="space-y-4">
+                                    {activeRentals.map(order =>
+                                        order.items.filter(i => i.type === 'rent').map((item, idx) => (
+                                            <div key={`${order.id}-${idx}`} className="border border-brand-border rounded-xl p-6 bg-black/20">
+                                                <div className="flex items-start gap-6 mb-4">
+                                                    <div className="w-24 h-24 bg-black/40 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                        <img src={item.image} alt={item.name} className="w-full h-full object-contain p-2" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-start justify-between mb-2">
+                                                            <div>
+                                                                <h4 className="font-bold text-white text-lg mb-1">{item.name}</h4>
+                                                                <p className="text-sm text-brand-muted">Order ID: ORD_{order.id}</p>
+                                                            </div>
+                                                            <span className="bg-green-500/20 text-green-400 px-4 py-1.5 rounded-full text-xs font-semibold border border-green-500/30">
+                                                                ACTIVE
+                                                            </span>
+                                                        </div>
+                                                        <div className="grid grid-cols-3 gap-4 text-sm mt-4">
+                                                            <div>
+                                                                <span className="text-brand-muted block mb-1">Rental Period</span>
+                                                                <span className="font-semibold text-white">{item.tenure} Months</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-brand-muted block mb-1">Monthly Price</span>
+                                                                <span className="font-semibold text-brand-primary">₹{item.price.toLocaleString()}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-brand-muted block mb-1">Ordered On</span>
+                                                                <span className="font-semibold text-white">{order.date}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Management Actions */}
+                                                <div className="flex items-center gap-3 pt-4 border-t border-brand-border">
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedRental({ orderId: order.id, item });
+                                                            setIsExtendModalOpen(true);
+                                                        }}
+                                                        className="flex-1 bg-brand-primary text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-brand-primaryHover transition-all flex items-center justify-center gap-2"
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">update</span>
+                                                        Extend Rental
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedRental({ orderId: order.id, item });
+                                                            setIsReturnModalOpen(true);
+                                                        }}
+                                                        className="flex-1 border border-brand-border text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-white/5 transition-all flex items-center justify-center gap-2"
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">assignment_return</span>
+                                                        Request Return
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedRental({ orderId: order.id, item });
+                                                            setIsDetailsModalOpen(true);
+                                                        }}
+                                                        className="border border-brand-border text-brand-muted px-4 py-2.5 rounded-lg font-semibold hover:bg-white/5 hover:text-white transition-all flex items-center justify-center gap-2"
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">info</span>
+                                                        Details
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <div className="flex gap-2">
+                                        ))
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="text-center py-12">
+                                    <span className="material-symbols-outlined text-6xl text-brand-muted mb-4 opacity-20">devices_off</span>
+                                    <p className="text-brand-muted mb-2">No active rentals at the moment</p>
+                                    <p className="text-sm text-brand-muted/60">Browse our catalog to start renting devices</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Order History */}
+                    {activeTab === 'orders' && (
+                        <div className="bg-brand-card border border-brand-border rounded-2xl p-8 shadow-xl">
+                            <h3 className="text-xl font-bold text-white mb-6">Order History</h3>
+                            <div className="space-y-4">
+                                {pastOrders.map(order => (
+                                    <div key={order.id} className="border border-brand-border rounded-xl p-6 bg-black/20">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <p className="text-sm text-brand-muted mb-1">Order ID</p>
+                                                <p className="font-mono font-semibold text-white">ORD_{order.id}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-brand-muted mb-1">Total Price</p>
+                                                <p className="font-bold text-brand-primary text-xl">₹{order.total.toLocaleString()}</p>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-3 mb-4">
+                                            {order.items.map((item, idx) => (
+                                                <div key={idx} className="flex items-center gap-4">
+                                                    <div className="w-16 h-16 bg-black/40 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                        <img src={item.image} className="w-full h-full object-contain p-2" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="font-semibold text-white">{item.name}</p>
+                                                        <p className="text-sm text-brand-muted">{item.type === 'rent' ? 'Rental' : 'Purchase'}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="flex justify-between items-center pt-4 border-t border-brand-border">
+                                            <span className={`px-4 py-1.5 rounded-full text-xs font-semibold ${order.status === 'Delivered'
+                                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                                : 'bg-brand-primary/20 text-brand-primary border border-brand-primary/30'
+                                                }`}>
+                                                {order.status}
+                                            </span>
+                                            <div className="flex items-center gap-4">
                                                 <button
                                                     onClick={() => {
-                                                        setEditingAddress(addr);
-                                                        setIsAddressModalOpen(true);
+                                                        setSelectedRental({ orderId: order.id, item: order.items[0] });
+                                                        setIsReturnModalOpen(true);
                                                     }}
-                                                    className="text-gray-400 hover:text-white transition-colors"
-                                                    title="Edit"
+                                                    className="text-sm font-semibold text-yellow-400 hover:underline flex items-center gap-1"
                                                 >
-                                                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                                                    <span className="material-symbols-outlined text-sm">assignment_return</span>
+                                                    Request Return
                                                 </button>
                                                 <button
-                                                    onClick={() => setDeleteConfirmId(addr.id)}
-                                                    className="text-gray-400 hover:text-red-400 transition-colors"
-                                                    title="Delete"
+                                                    onClick={async () => {
+                                                        await generateInvoice(order, user);
+                                                    }}
+                                                    className="text-sm font-semibold text-brand-primary hover:underline"
                                                 >
-                                                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                    Download Invoice
                                                 </button>
                                             </div>
                                         </div>
-                                        {addr.recipientName && (
-                                            <p className="text-white text-sm font-bold mb-1">{addr.recipientName}</p>
-                                        )}
-                                        <p className="text-gray-400 text-sm mb-1">{addr.address}</p>
-                                        <p className="text-gray-400 text-sm mb-2">
-                                            {addr.city}{addr.state ? `, ${addr.state}` : ''}{addr.pincode ? ` - ${addr.pincode}` : ''}
-                                        </p>
-                                        <p className="text-gray-400 text-xs mb-3">📞 {addr.phone}</p>
-                                        {!addr.isDefault && (
-                                            <button
-                                                onClick={async () => {
-                                                    try {
-                                                        await setDefaultAddress(addr.id);
-                                                        showToast('Default address updated successfully!');
-                                                    } catch (error: any) {
-                                                        showToast(error.message || 'Failed to set default address', 'error');
-                                                    }
-                                                }}
-                                                className="text-xs text-brand-primary hover:underline font-bold"
-                                            >
-                                                Set as Default
-                                            </button>
-                                        )}
                                     </div>
                                 ))}
                             </div>
                         </div>
                     )}
 
-                    {activeTab === 'rentals' && (
-                        <div className="flex flex-col gap-6">
-                            {activeRentals.length === 0 ? (
-                                <div className="text-center py-20 bg-brand-card/30 border border-brand-border border-dashed rounded-[2.5rem]">
-                                    <span className="material-symbols-outlined text-5xl text-brand-muted/30 mb-4">inventory</span>
-                                    <h3 className="text-xl font-bold text-white mb-2">No Active Rentals</h3>
-                                    <p className="text-brand-muted text-sm max-w-xs mx-auto">Rent a device today and it will appear here.</p>
-                                </div>
-                            ) : (
-                                activeRentals.map(order => (
-                                    order.items.filter(i => i.type === 'rent').map((item, idx) => (
-                                        <div key={`${order.id}-${idx}`} className="bg-brand-card border border-brand-border rounded-[2rem] p-8 relative overflow-hidden group hover:border-brand-primary/30 transition-all shadow-xl">
-                                            <div className="flex flex-col md:flex-row gap-8">
-                                                <div className="w-32 h-32 bg-black/40 rounded-3xl flex-shrink-0 p-4 border border-brand-border/30">
-                                                    <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
+                    {/* Addresses Management */}
+                    {activeTab === 'addresses' && (
+                        <div className="space-y-6">
+                            {user.addresses && user.addresses.length > 0 ? (
+                                user.addresses.map((address, idx) => (
+                                    <div key={address.id} className="bg-brand-card border border-brand-border rounded-2xl p-8 shadow-xl">
+                                        <div className="text-center">
+                                            {address.isDefault && (
+                                                <div className="inline-block mb-4">
+                                                    <span className="text-lg font-bold text-white">Default</span>
                                                 </div>
-                                                <div className="flex-1">
-                                                    <div className="flex justify-between items-start mb-4">
-                                                        <div>
-                                                            <h3 className="text-2xl font-bold text-white tracking-tight">{item.name}</h3>
-                                                            <p className="text-brand-muted text-sm mt-1">Order ID: <span className="font-mono">{order.id}</span></p>
-                                                        </div>
-                                                        <span className="bg-green-500/10 text-green-500 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-green-500/20">Active</span>
-                                                    </div>
+                                            )}
+                                            <h3 className="text-base font-semibold text-white mb-2">{address.recipientName || user.name}</h3>
+                                            <p className="text-sm text-brand-muted mb-1">{address.address}</p>
+                                            <p className="text-sm text-brand-muted mb-1">{address.pincode} {address.city}</p>
+                                            <p className="text-sm text-brand-muted mb-6">{address.state || 'India'}</p>
 
-                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6 mt-6">
-                                                        <div>
-                                                            <p className="text-[10px] text-brand-muted font-black uppercase tracking-widest mb-1">Rental Period</p>
-                                                            <p className="text-white font-bold">{item.tenure} Months</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-[10px] text-brand-muted font-black uppercase tracking-widest mb-1">Monthly Price</p>
-                                                            <p className="text-brand-primary font-bold">₹{item.price.toLocaleString()}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-[10px] text-brand-muted font-black uppercase tracking-widest mb-1">Ordered On</p>
-                                                            <p className="text-white font-bold">{order.date}</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="mt-8 flex flex-wrap gap-4 justify-end border-t border-brand-border/20 pt-6">
-                                                <button className="bg-brand-primary/10 text-brand-primary px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest border border-brand-primary/20 hover:bg-brand-primary hover:text-white transition-all">
-                                                    Manage Rental
+                                            <div className="flex items-center justify-center gap-3">
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingAddress(address);
+                                                        setIsAddressModalOpen(true);
+                                                    }}
+                                                    className="bg-brand-primary text-white px-8 py-2.5 rounded-lg font-semibold hover:bg-brand-primaryHover transition-all"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => setDeleteConfirmId(address.id)}
+                                                    className="border border-brand-border text-brand-primary px-8 py-2.5 rounded-lg font-semibold hover:bg-white/5 transition-all"
+                                                >
+                                                    Delete
                                                 </button>
                                             </div>
                                         </div>
-                                    ))
+                                    </div>
                                 ))
+                            ) : (
+                                <div className="bg-brand-card border border-brand-border rounded-2xl p-12 shadow-xl text-center">
+                                    <span className="material-symbols-outlined text-6xl text-brand-muted mb-4 opacity-20">location_off</span>
+                                    <p className="text-brand-muted mb-6">No addresses added yet</p>
+                                </div>
                             )}
+
+                            <div className="flex justify-center">
+                                <button
+                                    onClick={() => {
+                                        setEditingAddress(undefined);
+                                        setIsAddressModalOpen(true);
+                                    }}
+                                    className="bg-brand-primary text-white px-8 py-3 rounded-lg font-semibold hover:bg-brand-primaryHover transition-all shadow-glow"
+                                >
+                                    Add a new address
+                                </button>
+                            </div>
                         </div>
                     )}
 
-                    {activeTab === 'orders' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {pastOrders.map(order => (
-                                <div key={order.id} className="bg-brand-card border border-brand-border rounded-[2rem] p-8 shadow-xl">
-                                    <div className="flex justify-between items-center mb-6 border-b border-brand-border/20 pb-6">
-                                        <div>
-                                            <p className="text-[10px] text-brand-muted font-black uppercase tracking-[0.2em] mb-1">Order ID</p>
-                                            <p className="text-white font-mono font-bold">{order.id}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] text-brand-muted font-black uppercase tracking-[0.2em] mb-1">Total Price</p>
-                                            <p className="text-brand-primary font-bold text-xl">₹{order.total.toLocaleString()}</p>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4 mb-8">
-                                        {order.items.map((item, idx) => (
-                                            <div key={idx} className="flex items-center gap-4">
-                                                <div className="w-12 h-12 bg-black/40 rounded-xl flex-shrink-0 p-2 border border-brand-border/20">
-                                                    <img src={item.image} className="w-full h-full object-contain" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-white text-sm font-bold truncate">{item.name}</p>
-                                                    <p className="text-brand-muted text-[10px] font-black uppercase tracking-widest">{item.type}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="pt-6 border-t border-brand-border/20 flex justify-between items-center">
-                                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${order.status === 'Delivered' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-brand-primary/10 text-brand-primary border-brand-primary/20'}`}>
-                                            {order.status}
-                                        </span>
-                                        <button
-                                            onClick={async () => {
-                                                const btn = document.getElementById(`invoice-btn-${order.id}`);
-                                                if (btn) {
-                                                    btn.innerText = "Processing...";
-                                                    btn.setAttribute('disabled', 'true');
-                                                }
-                                                await generateInvoice(order, user);
-                                                if (btn) {
-                                                    btn.innerText = "Download Invoice";
-                                                    btn.removeAttribute('disabled');
-                                                }
-                                            }}
-                                            id={`invoice-btn-${order.id}`}
-                                            className="text-[10px] font-black uppercase tracking-widest text-brand-muted hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-lg border border-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            Download Invoice
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
+                    {/* Support */}
                     {activeTab === 'support' && (
-                        <div className="space-y-8">
-                            <div className="bg-brand-card border border-brand-border rounded-[2.5rem] p-10 shadow-2xl">
-                                <h3 className="text-2xl font-display font-bold text-white mb-6">Need help?</h3>
-                                <div className="flex flex-col md:flex-row items-end gap-4">
-                                    <div className="flex-1 flex flex-col gap-4">
-                                        <input
-                                            type="text"
-                                            placeholder="Subject (e.g., Product delivery delay)"
-                                            value={ticketSubject}
-                                            onChange={(e) => setTicketSubject(e.target.value)}
-                                            className="bg-black/40 border border-brand-border rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-primary transition-all placeholder:text-gray-500 font-medium w-full"
-                                        />
-                                        <textarea
-                                            placeholder="Description (e.g., My order #12345 is delayed...)"
-                                            value={ticketDescription}
-                                            onChange={(e) => setTicketDescription(e.target.value)}
-                                            className="bg-black/40 border border-brand-border rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-primary transition-all placeholder:text-gray-500 font-medium w-full min-h-[120px] resize-none"
-                                        />
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            if (ticketSubject && ticketDescription) {
-                                                addTicket(ticketSubject, ticketDescription);
-                                                setTicketSubject("");
-                                                setTicketDescription("");
-                                            }
-                                        }}
-                                        className="bg-brand-primary text-white font-black text-xs uppercase tracking-[0.2em] px-6 py-3 rounded-2xl hover:bg-brand-primaryHover transition-all shadow-lg active:scale-95 h-fit mb-1"
-                                    >
-                                        Send Message
-                                    </button>
-                                </div>
+                        <div className="bg-brand-card border border-brand-border rounded-2xl p-8 shadow-xl">
+                            <h3 className="text-xl font-bold text-white mb-6">Need help?</h3>
+                            <div className="space-y-4 mb-6">
+                                <input
+                                    type="text"
+                                    placeholder="Subject (e.g., Product delivery delay)"
+                                    value={ticketSubject}
+                                    onChange={(e) => setTicketSubject(e.target.value)}
+                                    className="w-full bg-black/40 border border-brand-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all placeholder:text-gray-500"
+                                />
+                                <textarea
+                                    placeholder="Description (e.g., My order #12345 is delayed...)"
+                                    value={ticketDescription}
+                                    onChange={(e) => setTicketDescription(e.target.value)}
+                                    className="w-full bg-black/40 border border-brand-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all placeholder:text-gray-500 min-h-[120px] resize-none"
+                                />
+                                <button
+                                    onClick={() => {
+                                        if (ticketSubject && ticketDescription) {
+                                            addTicket(ticketSubject, ticketDescription);
+                                            setTicketSubject("");
+                                            setTicketDescription("");
+                                        }
+                                    }}
+                                    className="bg-brand-primary text-white font-semibold px-6 py-3 rounded-lg hover:bg-brand-primaryHover transition-all shadow-glow"
+                                >
+                                    Send Message
+                                </button>
                             </div>
 
                             <div className="space-y-4">
-                                <h3 className="text-[10px] font-black text-brand-muted uppercase tracking-[0.4em] mb-6">Support History</h3>
+                                <h4 className="font-semibold text-white">Support History</h4>
                                 {tickets.map(ticket => (
-                                    <div key={ticket.id} className="flex items-center justify-between bg-brand-card/50 backdrop-blur-md p-6 rounded-3xl border border-brand-border hover:border-brand-primary/30 transition-all group">
-                                        <div className="flex items-center gap-6">
-                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${ticket.status === 'Open' ? 'bg-brand-primary/10 border-brand-primary/20 text-brand-primary' : 'bg-green-500/10 border-green-500/20 text-green-500'}`}>
-                                                <span className="material-symbols-outlined text-[20px]">{ticket.status === 'Open' ? 'mail' : 'done'}</span>
+                                    <div key={ticket.id} className="border border-brand-border rounded-xl p-6 bg-black/20 flex items-start justify-between">
+                                        <div className="flex items-start gap-4">
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${ticket.status === 'Open' ? 'bg-brand-primary/20 text-brand-primary' : 'bg-green-500/20 text-green-400'
+                                                }`}>
+                                                <span className="material-symbols-outlined text-xl">
+                                                    {ticket.status === 'Open' ? 'mail' : 'done'}
+                                                </span>
                                             </div>
                                             <div>
-                                                <h4 className="text-white font-bold">{ticket.subject}</h4>
-                                                <p className="text-gray-400 text-sm mt-1">{ticket.description}</p>
-                                                <p className="text-[10px] text-brand-muted font-black uppercase tracking-widest mt-2">Ticket {ticket.id} • Created on {ticket.date}</p>
+                                                <h5 className="font-semibold text-white">{ticket.subject}</h5>
+                                                <p className="text-sm text-brand-muted mt-1">{ticket.description}</p>
+                                                <p className="text-xs text-gray-500 mt-2">Ticket {ticket.id} • Created on {ticket.date}</p>
                                             </div>
                                         </div>
-                                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${ticket.status === 'Open' ? 'bg-brand-primary/10 text-brand-primary border-brand-primary/20' :
-                                            ticket.status === 'Resolved' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
-                                                ticket.status === 'In Progress' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' :
-                                                    'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' // Pending
+                                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${ticket.status === 'Open' ? 'bg-brand-primary/20 text-brand-primary border border-brand-primary/30' :
+                                            ticket.status === 'Resolved' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                                                ticket.status === 'In Progress' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
+                                                    'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                                             }`}>
                                             {ticket.status}
                                         </span>
@@ -451,7 +546,8 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                     )}
                 </div>
             </div>
-            {/* Address Modal */}
+
+            {/* Modals remain the same */}
             {isAddressModalOpen && (
                 <AddressModal
                     onClose={() => {
@@ -463,19 +559,18 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                 />
             )}
 
-            {/* Delete Confirmation Dialog */}
             {deleteConfirmId && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setDeleteConfirmId(null)} />
-                    <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
+                    <div className="relative bg-brand-card border border-brand-border rounded-2xl p-8 w-full max-w-md shadow-2xl">
                         <h3 className="text-xl font-bold text-white mb-4">Delete Address?</h3>
-                        <p className="text-gray-400 text-sm mb-6">
+                        <p className="text-brand-muted text-sm mb-6">
                             Are you sure you want to delete this address? This action cannot be undone.
                         </p>
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setDeleteConfirmId(null)}
-                                className="flex-1 py-3 rounded-xl text-sm font-bold text-gray-400 hover:bg-white/5 transition-all"
+                                className="flex-1 py-3 rounded-xl text-sm font-bold text-brand-muted hover:bg-white/5 transition-all"
                             >
                                 Cancel
                             </button>
@@ -499,91 +594,375 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                 </div>
             )}
 
-            {/* Payment Preference Modal */}
-            {
-                isPaymentModalOpen && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsPaymentModalOpen(false)} />
-                        <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
-                            <h3 className="text-xl font-bold text-white mb-6">Payment Preference</h3>
-                            <p className="text-gray-400 text-sm mb-6">Select your preferred method for monthly rental payments and security deposit refunds.</p>
+            {isPaymentModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsPaymentModalOpen(false)} />
+                    <div className="relative bg-brand-card border border-brand-border rounded-2xl p-8 w-full max-w-md shadow-2xl">
+                        <h3 className="text-xl font-bold text-white mb-6">Payment Preference</h3>
+                        <p className="text-brand-muted text-sm mb-6">Select your preferred method for monthly rental payments and security deposit refunds.</p>
 
-                            <div className="flex flex-col gap-3 mb-6">
-                                {[
-                                    { id: 'card', label: 'Credit/Debit Card', icon: 'credit_card' },
-                                    { id: 'upi', label: 'UPI / VPA', icon: 'qr_code' },
-                                    { id: 'net_banking', label: 'Net Banking', icon: 'account_balance' }
-                                ].map(method => (
-                                    <button
-                                        key={method.id}
-                                        onClick={() => {
-                                            // Just update local state, don't save yet
-                                            setUpiId(method.id === 'upi' ? (user?.rentalPreferences?.upiId || '') : '');
-                                        }}
-                                        className={`flex items-center gap-4 p-4 rounded-xl border transition-all group ${user?.rentalPreferences?.depositMethod === method.id
-                                            ? 'bg-brand-primary/10 border-brand-primary'
-                                            : 'bg-white/5 hover:bg-white/10 border-white/5 hover:border-brand-primary/50'
-                                            }`}
-                                    >
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${user?.rentalPreferences?.depositMethod === method.id
-                                            ? 'bg-brand-primary text-white'
-                                            : 'bg-black/40 text-brand-primary group-hover:bg-brand-primary group-hover:text-white'
-                                            }`}>
-                                            <span className="material-symbols-outlined">{method.icon}</span>
-                                        </div>
-                                        <span className="font-bold text-white">{method.label}</span>
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* UPI ID Input */}
-                            <div className="mb-6">
-                                <label className="text-gray-400 text-xs font-bold uppercase tracking-widest block mb-2">
-                                    UPI ID (Optional)
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="yourname@upi"
-                                    value={upiId}
-                                    onChange={(e) => setUpiId(e.target.value)}
-                                    className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-brand-primary transition-all"
-                                />
-                                <p className="text-gray-500 text-xs mt-2">Enter your UPI ID for faster checkout</p>
-                            </div>
-
-                            <div className="flex gap-3">
+                        <div className="flex flex-col gap-3 mb-6">
+                            {[
+                                { id: 'card', label: 'Credit/Debit Card', icon: 'credit_card' },
+                                { id: 'upi', label: 'UPI / VPA', icon: 'qr_code' },
+                                { id: 'net_banking', label: 'Net Banking', icon: 'account_balance' }
+                            ].map(method => (
                                 <button
-                                    onClick={() => setIsPaymentModalOpen(false)}
-                                    className="flex-1 py-3 rounded-xl text-sm font-bold text-gray-400 hover:bg-white/5 transition-all"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={async () => {
-                                        try {
-                                            await updateRentalPreferences({
-                                                depositMethod: user?.rentalPreferences?.depositMethod || 'upi',
-                                                isOnboardingComplete: true,
-                                                upiId: upiId || undefined
-                                            });
-                                            showToast('Payment preferences saved successfully!');
-                                            setIsPaymentModalOpen(false);
-                                        } catch (error: any) {
-                                            showToast(error.message || 'Failed to save preferences', 'error');
-                                        }
+                                    key={method.id}
+                                    onClick={() => {
+                                        setUpiId(method.id === 'upi' ? (user?.rentalPreferences?.upiId || '') : '');
                                     }}
-                                    className="flex-1 bg-brand-primary text-white py-3 rounded-xl text-sm font-bold hover:bg-brand-primary/90 transition-all shadow-glow"
+                                    className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${user?.rentalPreferences?.depositMethod === method.id
+                                        ? 'bg-brand-primary/20 border-brand-primary'
+                                        : 'bg-white/5 hover:bg-white/10 border-brand-border'
+                                        }`}
                                 >
-                                    Save Preferences
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${user?.rentalPreferences?.depositMethod === method.id
+                                        ? 'bg-brand-primary text-white'
+                                        : 'bg-black/40 text-brand-primary'
+                                        }`}>
+                                        <span className="material-symbols-outlined">{method.icon}</span>
+                                    </div>
+                                    <span className="font-semibold text-white">{method.label}</span>
                                 </button>
-                            </div>
+                            ))}
+                        </div>
+
+                        <div className="mb-6">
+                            <label className="text-brand-muted text-sm font-semibold block mb-2">
+                                UPI ID (Optional)
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="yourname@upi"
+                                value={upiId}
+                                onChange={(e) => setUpiId(e.target.value)}
+                                className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-brand-primary transition-all"
+                            />
+                            <p className="text-gray-500 text-xs mt-2">Enter your UPI ID for faster checkout</p>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setIsPaymentModalOpen(false)}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold text-brand-muted hover:bg-white/5 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await updateRentalPreferences({
+                                            depositMethod: user?.rentalPreferences?.depositMethod || 'upi',
+                                            isOnboardingComplete: true,
+                                            upiId: upiId || undefined
+                                        });
+                                        showToast('Payment preferences saved successfully!');
+                                        setIsPaymentModalOpen(false);
+                                    } catch (error: any) {
+                                        showToast(error.message || 'Failed to save preferences', 'error');
+                                    }
+                                }}
+                                className="flex-1 bg-brand-primary text-white py-3 rounded-xl text-sm font-bold hover:bg-brand-primaryHover transition-all shadow-glow"
+                            >
+                                Save Preferences
+                            </button>
                         </div>
                     </div>
-                )
-            }
+                </div>
+            )}
+
+            {/* Extend Rental Modal */}
+            {isExtendModalOpen && selectedRental && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                    <div className="bg-brand-card border border-brand-border rounded-2xl max-w-md w-full p-8 shadow-2xl">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-white">Extend Rental Period</h3>
+                            <button
+                                onClick={() => {
+                                    setIsExtendModalOpen(false);
+                                    setSelectedRental(null);
+                                }}
+                                className="text-brand-muted hover:text-white transition-colors"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        <div className="mb-6">
+                            <p className="text-sm text-brand-muted mb-4">
+                                Extend rental period for <span className="text-white font-semibold">{selectedRental.item.name}</span>
+                            </p>
+
+                            <label className="block text-sm font-medium text-white mb-2">
+                                Extension Period
+                            </label>
+                            <select
+                                value={extensionMonths}
+                                onChange={(e) => setExtensionMonths(Number(e.target.value))}
+                                className="w-full bg-black/40 border border-brand-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-colors"
+                            >
+                                <option value={3} style={{ backgroundColor: 'white', color: 'black' }}>3 Months</option>
+                                <option value={6} style={{ backgroundColor: 'white', color: 'black' }}>6 Months</option>
+                                <option value={9} style={{ backgroundColor: 'white', color: 'black' }}>9 Months</option>
+                                <option value={12} style={{ backgroundColor: 'white', color: 'black' }}>12 Months</option>
+                            </select>
+
+                            <div className="mt-4 bg-black/20 border border-brand-border rounded-lg p-4">
+                                <div className="flex items-center justify-between text-sm mb-2">
+                                    <span className="text-brand-muted">Monthly Price:</span>
+                                    <span className="text-white font-semibold">₹{selectedRental.item.price.toLocaleString()}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-brand-muted">Extension Cost:</span>
+                                    <span className="text-brand-primary font-bold">₹{(selectedRental.item.price * extensionMonths).toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setIsExtendModalOpen(false);
+                                    setSelectedRental(null);
+                                }}
+                                className="flex-1 border border-brand-border text-white py-3 rounded-lg font-semibold hover:bg-white/5 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleExtendRental}
+                                className="flex-1 bg-brand-primary text-white py-3 rounded-lg font-semibold hover:bg-brand-primaryHover transition-all shadow-glow"
+                            >
+                                Confirm Extension
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Request Return Modal */}
+            {isReturnModalOpen && selectedRental && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                    <div className="bg-brand-card border border-brand-border rounded-2xl max-w-md w-full p-8 shadow-2xl">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-white">Request Return</h3>
+                            <button
+                                onClick={() => {
+                                    setIsReturnModalOpen(false);
+                                    setSelectedRental(null);
+                                    setReturnReason('');
+                                }}
+                                className="text-brand-muted hover:text-white transition-colors"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        <div className="mb-6">
+                            <p className="text-sm text-brand-muted mb-4">
+                                Request return for <span className="text-white font-semibold">{selectedRental.item.name}</span>
+                            </p>
+
+                            <label className="block text-sm font-medium text-white mb-2">
+                                Reason for Return <span className="text-red-400">*</span>
+                            </label>
+                            <textarea
+                                value={returnReason}
+                                onChange={(e) => setReturnReason(e.target.value)}
+                                placeholder="Please provide a reason for returning this device..."
+                                rows={4}
+                                className="w-full bg-black/40 border border-brand-border rounded-lg px-4 py-3 text-white placeholder-brand-muted/50 focus:outline-none focus:border-brand-primary transition-colors resize-none"
+                            />
+
+                            <div className="mt-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                                <div className="flex items-start gap-2">
+                                    <span className="material-symbols-outlined text-yellow-400 text-lg">info</span>
+                                    <p className="text-xs text-yellow-200">
+                                        Our team will review your request and contact you within 24-48 hours to arrange pickup.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setIsReturnModalOpen(false);
+                                    setSelectedRental(null);
+                                    setReturnReason('');
+                                }}
+                                className="flex-1 border border-brand-border text-white py-3 rounded-lg font-semibold hover:bg-white/5 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleRequestReturn}
+                                className="flex-1 bg-brand-primary text-white py-3 rounded-lg font-semibold hover:bg-brand-primaryHover transition-all shadow-glow"
+                            >
+                                Submit Request
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Rental Details Modal */}
+            {isDetailsModalOpen && selectedRental && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                    <div className="bg-brand-card border border-brand-border rounded-2xl max-w-2xl w-full p-8 shadow-2xl my-8">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-white">Rental Details</h3>
+                            <button
+                                onClick={() => {
+                                    setIsDetailsModalOpen(false);
+                                    setSelectedRental(null);
+                                }}
+                                className="text-brand-muted hover:text-white transition-colors"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        {/* Product Info */}
+                        <div className="flex items-start gap-6 mb-6 pb-6 border-b border-brand-border">
+                            <div className="w-32 h-32 bg-black/40 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <img src={selectedRental.item.image} alt={selectedRental.item.name} className="w-full h-full object-contain p-3" />
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="font-bold text-white text-xl mb-2">{selectedRental.item.name}</h4>
+                                <p className="text-sm text-brand-muted mb-3">Order ID: ORD_{selectedRental.orderId}</p>
+                                <div className="flex items-center gap-3">
+                                    <span className="bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-xs font-semibold border border-green-500/30">
+                                        ACTIVE
+                                    </span>
+                                    <span className="text-sm text-brand-muted">
+                                        Rented on: {orders.find(o => o.id === selectedRental.orderId)?.date}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Rental Information */}
+                        <div className="space-y-6">
+                            {/* Rental Timeline */}
+                            <div>
+                                <h5 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-brand-primary">schedule</span>
+                                    Rental Timeline
+                                </h5>
+                                <div className="grid grid-cols-2 gap-4 bg-black/20 border border-brand-border rounded-lg p-4">
+                                    <div>
+                                        <p className="text-xs text-brand-muted mb-1">Rental Period</p>
+                                        <p className="text-sm font-semibold text-white">{selectedRental.item.tenure} Months</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-brand-muted mb-1">Start Date</p>
+                                        <p className="text-sm font-semibold text-white">{orders.find(o => o.id === selectedRental.orderId)?.date}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-brand-muted mb-1">End Date</p>
+                                        <p className="text-sm font-semibold text-white">
+                                            {new Date(new Date(orders.find(o => o.id === selectedRental.orderId)?.date || '').getTime() + selectedRental.item.tenure * 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-brand-muted mb-1">Remaining Days</p>
+                                        <p className="text-sm font-semibold text-brand-primary">
+                                            {Math.max(0, Math.ceil((new Date(new Date(orders.find(o => o.id === selectedRental.orderId)?.date || '').getTime() + selectedRental.item.tenure * 30 * 24 * 60 * 60 * 1000).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))} days
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Payment Details */}
+                            <div>
+                                <h5 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-brand-primary">payments</span>
+                                    Payment Details
+                                </h5>
+                                <div className="bg-black/20 border border-brand-border rounded-lg p-4 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm text-brand-muted">Monthly Rental</span>
+                                        <span className="text-sm font-semibold text-white">₹{selectedRental.item.price.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm text-brand-muted">Total Rental Cost</span>
+                                        <span className="text-sm font-semibold text-white">₹{(selectedRental.item.price * selectedRental.item.tenure).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between pt-2 border-t border-brand-border">
+                                        <span className="text-sm text-brand-muted">Payment Status</span>
+                                        <span className="text-sm font-semibold text-green-400">Paid</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Product Specifications */}
+                            {selectedRental.item.specs && (
+                                <div>
+                                    <h5 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-brand-primary">settings</span>
+                                        Product Specifications
+                                    </h5>
+                                    <div className="bg-black/20 border border-brand-border rounded-lg p-4">
+                                        <div className="grid grid-cols-2 gap-3 text-sm">
+                                            {Object.entries(selectedRental.item.specs).map(([key, value]) => (
+                                                <div key={key}>
+                                                    <span className="text-brand-muted capitalize">{key}: </span>
+                                                    <span className="text-white font-medium">{value as string}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Terms & Conditions */}
+                            <div>
+                                <h5 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-brand-primary">description</span>
+                                    Terms & Conditions
+                                </h5>
+                                <div className="bg-black/20 border border-brand-border rounded-lg p-4">
+                                    <ul className="text-xs text-brand-muted space-y-2">
+                                        <li className="flex items-start gap-2">
+                                            <span className="material-symbols-outlined text-xs mt-0.5">check_circle</span>
+                                            <span>Device must be returned in original condition</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="material-symbols-outlined text-xs mt-0.5">check_circle</span>
+                                            <span>Security deposit will be refunded after inspection</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="material-symbols-outlined text-xs mt-0.5">check_circle</span>
+                                            <span>Extension requests must be made 7 days before rental end date</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="material-symbols-outlined text-xs mt-0.5">check_circle</span>
+                                            <span>Early return requests are subject to approval</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 pt-6 border-t border-brand-border">
+                            <button
+                                onClick={() => {
+                                    setIsDetailsModalOpen(false);
+                                    setSelectedRental(null);
+                                }}
+                                className="w-full bg-brand-primary text-white py-3 rounded-lg font-semibold hover:bg-brand-primaryHover transition-all shadow-glow"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Toast Notification */}
-            {toast && (
+            {toast?.visible && (
                 <ToastNotification
                     message={toast.message}
                     type={toast.type}

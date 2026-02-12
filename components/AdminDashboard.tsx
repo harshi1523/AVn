@@ -138,6 +138,7 @@ export default function AdminDashboard() {
     { label: 'Total Revenue', value: `₹${(calculatedRevenue / 1000000).toFixed(2)}M`, icon: 'payments' },
     { label: 'Growth', value: `${growthPercentage >= 0 ? '+' : ''}${growthPercentage.toFixed(1)}%`, icon: 'trending_up' },
     { label: 'Active Rentals', value: activeRentalsCount, icon: 'laptop_mac' },
+    { label: 'Active Returns', value: allOrders.filter(o => o.status === 'Return Requested').length, icon: 'assignment_return' },
     { label: 'Support Tickets', value: filteredTickets.filter(t => t.status !== 'Resolved').length, icon: 'contact_support' },
   ];
 
@@ -250,12 +251,12 @@ export default function AdminDashboard() {
                   onChange={(e) => setDateRange(e.target.value as any)}
                   className="bg-black/40 border border-brand-border rounded-xl text-sm text-gray-400 px-4 py-2 focus:outline-none focus:border-brand-primary cursor-pointer hover:bg-white/5 transition-colors"
                 >
-                  <option value="7d">Last 7 Days</option>
-                  <option value="30d">Last 30 Days</option>
-                  <option value="3m">Last 3 Months</option>
-                  <option value="6m">Last 6 Months</option>
-                  <option value="12m">Last 12 Months</option>
-                  <option value="custom">Custom Range</option>
+                  <option value="7d" style={{ backgroundColor: 'white', color: 'black' }}>Last 7 Days</option>
+                  <option value="30d" style={{ backgroundColor: 'white', color: 'black' }}>Last 30 Days</option>
+                  <option value="3m" style={{ backgroundColor: 'white', color: 'black' }}>Last 3 Months</option>
+                  <option value="6m" style={{ backgroundColor: 'white', color: 'black' }}>Last 6 Months</option>
+                  <option value="12m" style={{ backgroundColor: 'white', color: 'black' }}>Last 12 Months</option>
+                  <option value="custom" style={{ backgroundColor: 'white', color: 'black' }}>Custom Range</option>
                 </select>
               </div>
             )}
@@ -263,7 +264,7 @@ export default function AdminDashboard() {
 
           {activeTab === 'overview' && (
             <div className="space-y-8 lg:space-y-10">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
                 {stats.map((stat, i) => (
                   <div key={i} className="bg-brand-card border border-brand-border p-6 lg:p-8 rounded-[2rem] lg:rounded-[2.5rem] shadow-xl" data-testid={`stat-card-${stat.label.toLowerCase().replace(/\s+/g, '-')}`}>
                     <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-6 text-white border border-white/5">
@@ -366,6 +367,12 @@ export default function AdminDashboard() {
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-white">Order Management</h3>
                 <div className="flex gap-4">
+                  <button
+                    onClick={() => setFilterStatus('Return Requested')}
+                    className="text-xs text-yellow-400 hover:text-yellow-300 transition-colors mr-2 font-bold"
+                  >
+                    Return Requests ({allOrders.filter(o => o.status === 'Return Requested').length})
+                  </button>
                   {(filterStatus !== 'All' || dateRange !== '7d') && (
                     <button
                       onClick={() => { setFilterStatus('All'); setDateRange('7d'); }}
@@ -379,15 +386,15 @@ export default function AdminDashboard() {
                     onChange={(e) => setFilterStatus(e.target.value as any)}
                     className="bg-black/40 border border-brand-border rounded-xl text-xs text-gray-400 px-4 py-2 focus:outline-none focus:border-brand-primary cursor-pointer hover:bg-white/5 transition-colors"
                   >
-                    <option value="All">All Statuses</option>
-                    <option value="Placed">Placed</option>
-                    <option value="Shipped">Shipped</option>
-                    <option value="Delivered">Delivered</option>
-                    <option value="In Use">In Use (Active Rentals)</option>
-                    <option value="Return Requested">Return Requested</option>
-                    <option value="Returned">Returned</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Cancelled">Cancelled</option>
+                    <option value="All" style={{ backgroundColor: 'white', color: 'black' }}>All Statuses</option>
+                    <option value="Placed" style={{ backgroundColor: 'white', color: 'black' }}>Placed</option>
+                    <option value="Shipped" style={{ backgroundColor: 'white', color: 'black' }}>Shipped</option>
+                    <option value="Delivered" style={{ backgroundColor: 'white', color: 'black' }}>Delivered</option>
+                    <option value="In Use" style={{ backgroundColor: 'white', color: 'black' }}>In Use (Active Rentals)</option>
+                    <option value="Return Requested" style={{ backgroundColor: 'white', color: 'black' }}>Return Requested</option>
+                    <option value="Returned" style={{ backgroundColor: 'white', color: 'black' }}>Returned</option>
+                    <option value="Completed" style={{ backgroundColor: 'white', color: 'black' }}>Completed</option>
+                    <option value="Cancelled" style={{ backgroundColor: 'white', color: 'black' }}>Cancelled</option>
                   </select>
                 </div>
               </div>
@@ -511,20 +518,20 @@ export default function AdminDashboard() {
                               className="bg-black/40 border border-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-gray-400 p-2 focus:outline-none focus:border-brand-primary"
                               value={order.status}
                             >
-                              <option value="Placed">Placed</option>
-                              <option value="Processing">Processing</option>
-                              <option value="Shipped">Shipped</option>
-                              <option value="Delivered">Delivered</option>
+                              <option value="Placed" style={{ backgroundColor: 'white', color: 'black' }}>Placed</option>
+                              <option value="Processing" style={{ backgroundColor: 'white', color: 'black' }}>Processing</option>
+                              <option value="Shipped" style={{ backgroundColor: 'white', color: 'black' }}>Shipped</option>
+                              <option value="Delivered" style={{ backgroundColor: 'white', color: 'black' }}>Delivered</option>
                               {/* Rental Specific */}
                               {order.items.some(i => i.type === 'rent') && (
                                 <>
-                                  <option value="In Use">In Use (Active)</option>
-                                  <option value="Return Requested">Return Requested</option>
-                                  <option value="Returned">Returned</option>
+                                  <option value="In Use" style={{ backgroundColor: 'white', color: 'black' }}>In Use (Active)</option>
+                                  <option value="Return Requested" style={{ backgroundColor: 'white', color: 'black' }}>Return Requested</option>
+                                  <option value="Returned" style={{ backgroundColor: 'white', color: 'black' }}>Returned</option>
                                 </>
                               )}
-                              <option value="Completed">Completed</option>
-                              <option value="Cancelled">Cancelled</option>
+                              <option value="Completed" style={{ backgroundColor: 'white', color: 'black' }}>Completed</option>
+                              <option value="Cancelled" style={{ backgroundColor: 'white', color: 'black' }}>Cancelled</option>
                             </select>
                           </div>
                         </td>
@@ -860,6 +867,110 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {activeTab === 'financials' && (
+            <div className="space-y-8">
+              {/* Financial Overview Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-brand-card border border-brand-border p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-brand-primary/10 rounded-bl-[100%] transition-transform group-hover:scale-110"></div>
+                  <div className="relative z-10">
+                    <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-6 text-brand-primary border border-white/5">
+                      <span className="material-symbols-outlined text-[24px]">payments</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.4em] mb-2">Total Revenue</p>
+                    <p className="text-3xl font-display font-bold text-white tracking-tighter">
+                      ₹{(calculatedRevenue / 1000000).toFixed(2)}M
+                    </p>
+                    <p className="text-xs text-gray-400 mt-2">
+                      <span className={`${growthPercentage >= 0 ? 'text-green-400' : 'text-red-400'} font-bold`}>
+                        {growthPercentage >= 0 ? '+' : ''}{growthPercentage.toFixed(1)}%
+                      </span> vs last period
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-brand-card border border-brand-border p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-bl-[100%] transition-transform group-hover:scale-110"></div>
+                  <div className="relative z-10">
+                    <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-6 text-purple-400 border border-white/5">
+                      <span className="material-symbols-outlined text-[24px]">devices</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.4em] mb-2">Active Rental Value</p>
+                    <p className="text-3xl font-display font-bold text-white tracking-tighter">
+                      ₹{(activeRentalsCount * 5000 / 100000).toFixed(1)}L
+                    </p>
+                    <p className="text-xs text-gray-400 mt-2">Estimated monthly recurring revenue from <span className="text-white font-bold">{activeRentalsCount}</span> active units</p>
+                  </div>
+                </div>
+
+                <div className="bg-brand-card border border-brand-border p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-bl-[100%] transition-transform group-hover:scale-110"></div>
+                  <div className="relative z-10">
+                    <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-6 text-blue-400 border border-white/5">
+                      <span className="material-symbols-outlined text-[24px]">receipt_long</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.4em] mb-2">Avg. Order Value</p>
+                    <p className="text-3xl font-display font-bold text-white tracking-tighter">
+                      ₹{filteredOrders.length > 0 ? (calculatedRevenue / filteredOrders.length).toLocaleString(undefined, { maximumFractionDigits: 0 }) : 0}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-2">Based on <span className="text-white font-bold">{filteredOrders.length}</span> orders in current period</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Transactions Table */}
+              <div className="bg-brand-card border border-brand-border rounded-[2.5rem] p-8 shadow-xl">
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-xl font-bold text-white">Recent Transactions</h3>
+                  <button className="text-xs text-brand-primary hover:text-white transition-colors font-bold uppercase tracking-widest flex items-center gap-2">
+                    View All <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="text-[9px] text-gray-500 font-black uppercase tracking-[0.1em] border-b border-white/5">
+                        <th className="px-6 py-4 whitespace-nowrap">Transaction ID</th>
+                        <th className="px-6 py-4 whitespace-nowrap">Date</th>
+                        <th className="px-6 py-4 whitespace-nowrap">User</th>
+                        <th className="px-6 py-4 whitespace-nowrap">Type</th>
+                        <th className="px-6 py-4 whitespace-nowrap">Amount</th>
+                        <th className="px-6 py-4 whitespace-nowrap">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredOrders.slice(0, 10).map(order => (
+                        <tr key={order.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                          <td className="px-6 py-4 text-white font-mono text-xs">{order.transactionId || `TXN_${order.id.substring(0, 8)}`}</td>
+                          <td className="px-6 py-4 text-gray-400 text-xs">{new Date(order.date).toLocaleDateString()}</td>
+                          <td className="px-6 py-4 text-white text-xs font-bold">{order.userName}</td>
+                          <td className="px-6 py-4">
+                            <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${order.items[0]?.type === 'rent' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                              {order.items[0]?.type === 'rent' ? 'Rental' : 'Purchase'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-white font-bold text-sm">₹{order.total.toLocaleString()}</td>
+                          <td className="px-6 py-4">
+                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${order.paymentStatus === 'Paid' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                              }`}>
+                              {order.paymentStatus || 'Paid'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredOrders.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="text-center py-12 text-gray-500">No transactions found for this period</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'users' && (
             <div className="bg-brand-card border border-brand-border rounded-[2.5rem] p-6 lg:p-10 shadow-2xl overflow-hidden">
               <div className="flex justify-between items-center mb-6">
@@ -871,10 +982,10 @@ export default function AdminDashboard() {
                     onChange={(e) => setRoleFilter(e.target.value as any)} // Cast to any to accept new value
                     className="bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-brand-primary cursor-pointer appearance-none"
                   >
-                    <option value="all">All Users</option>
-                    <option value="user">Customers Only</option>
-                    <option value="admin">Admins Only</option>
-                    <option value="pending_kyc">Pending KYC</option>
+                    <option value="all" style={{ backgroundColor: 'white', color: 'black' }}>All Users</option>
+                    <option value="user" style={{ backgroundColor: 'white', color: 'black' }}>Customers Only</option>
+                    <option value="admin" style={{ backgroundColor: 'white', color: 'black' }}>Admins Only</option>
+                    <option value="pending_kyc" style={{ backgroundColor: 'white', color: 'black' }}>Pending KYC</option>
                   </select>
 
                   <div className="relative w-64">
@@ -1031,10 +1142,10 @@ export default function AdminDashboard() {
                             onChange={(e) => updateTicketStatus(ticket.id, e.target.value as any)}
                             className="bg-black/40 border border-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-gray-400 p-2 focus:outline-none focus:border-brand-primary"
                           >
-                            <option value="Open">Open</option>
-                            <option value="Pending">Pending</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Resolved">Resolved</option>
+                            <option value="Open" style={{ backgroundColor: 'white', color: 'black' }}>Open</option>
+                            <option value="Pending" style={{ backgroundColor: 'white', color: 'black' }}>Pending</option>
+                            <option value="In Progress" style={{ backgroundColor: 'white', color: 'black' }}>In Progress</option>
+                            <option value="Resolved" style={{ backgroundColor: 'white', color: 'black' }}>Resolved</option>
                           </select>
                         </td>
                       </tr>
@@ -1112,11 +1223,11 @@ export default function AdminDashboard() {
                         onChange={(e) => setTicketStatusFilter(e.target.value as any)}
                         className="bg-black/40 border border-brand-border rounded-xl text-xs text-gray-400 px-4 py-2 focus:outline-none focus:border-brand-primary cursor-pointer hover:bg-white/5 transition-colors"
                       >
-                        <option value="All">All Statuses</option>
-                        <option value="Open">Open</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Resolved">Resolved</option>
+                        <option value="All" style={{ backgroundColor: 'white', color: 'black' }}>All Statuses</option>
+                        <option value="Open" style={{ backgroundColor: 'white', color: 'black' }}>Open</option>
+                        <option value="In Progress" style={{ backgroundColor: 'white', color: 'black' }}>In Progress</option>
+                        <option value="Pending" style={{ backgroundColor: 'white', color: 'black' }}>Pending</option>
+                        <option value="Resolved" style={{ backgroundColor: 'white', color: 'black' }}>Resolved</option>
                       </select>
 
                       {/* Priority Filter */}
@@ -1125,11 +1236,11 @@ export default function AdminDashboard() {
                         onChange={(e) => setTicketPriorityFilter(e.target.value as any)}
                         className="bg-black/40 border border-brand-border rounded-xl text-xs text-gray-400 px-4 py-2 focus:outline-none focus:border-brand-primary cursor-pointer hover:bg-white/5 transition-colors"
                       >
-                        <option value="All">All Priorities</option>
-                        <option value="Urgent">Urgent</option>
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
+                        <option value="All" style={{ backgroundColor: 'white', color: 'black' }}>All Priorities</option>
+                        <option value="Urgent" style={{ backgroundColor: 'white', color: 'black' }}>Urgent</option>
+                        <option value="High" style={{ backgroundColor: 'white', color: 'black' }}>High</option>
+                        <option value="Medium" style={{ backgroundColor: 'white', color: 'black' }}>Medium</option>
+                        <option value="Low" style={{ backgroundColor: 'white', color: 'black' }}>Low</option>
                       </select>
 
                       {/* Clear Filters */}
@@ -1893,10 +2004,10 @@ export default function AdminDashboard() {
                         }}
                         className="w-full bg-black/40 border border-brand-border rounded-lg text-sm text-white px-3 py-2 focus:outline-none focus:border-brand-primary cursor-pointer"
                       >
-                        <option value="Open">Open</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Resolved">Resolved</option>
+                        <option value="Open" style={{ backgroundColor: 'white', color: 'black' }}>Open</option>
+                        <option value="In Progress" style={{ backgroundColor: 'white', color: 'black' }}>In Progress</option>
+                        <option value="Pending" style={{ backgroundColor: 'white', color: 'black' }}>Pending</option>
+                        <option value="Resolved" style={{ backgroundColor: 'white', color: 'black' }}>Resolved</option>
                       </select>
                     </div>
 
@@ -1911,10 +2022,10 @@ export default function AdminDashboard() {
                         }}
                         className="w-full bg-black/40 border border-brand-border rounded-lg text-sm text-white px-3 py-2 focus:outline-none focus:border-brand-primary cursor-pointer"
                       >
-                        <option value="Low">Low</option>
-                        <option value="Medium">Medium</option>
-                        <option value="High">High</option>
-                        <option value="Urgent">Urgent</option>
+                        <option value="Low" style={{ backgroundColor: 'white', color: 'black' }}>Low</option>
+                        <option value="Medium" style={{ backgroundColor: 'white', color: 'black' }}>Medium</option>
+                        <option value="High" style={{ backgroundColor: 'white', color: 'black' }}>High</option>
+                        <option value="Urgent" style={{ backgroundColor: 'white', color: 'black' }}>Urgent</option>
                       </select>
                     </div>
 
@@ -1932,9 +2043,9 @@ export default function AdminDashboard() {
                         }}
                         className="w-full bg-black/40 border border-brand-border rounded-lg text-sm text-white px-3 py-2 focus:outline-none focus:border-brand-primary cursor-pointer"
                       >
-                        <option value="">Unassigned</option>
+                        <option value="" style={{ backgroundColor: 'white', color: 'gray' }}>Unassigned</option>
                         {adminList.map(admin => (
-                          <option key={admin.id} value={admin.id}>{admin.name}</option>
+                          <option key={admin.id} value={admin.id} style={{ backgroundColor: 'white', color: 'black' }}>{admin.name}</option>
                         ))}
                       </select>
                     </div>

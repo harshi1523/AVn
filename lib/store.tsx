@@ -777,9 +777,12 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
         // Optimistic State Update for Admin
         setAllUsers(prev => prev.map(user => user.id === u.id ? { ...user, orders: updatedOrders } : user));
 
+        // Sanitize for Firestore persistence (removal of undefined keys)
+        const sanitizedOrders = JSON.parse(JSON.stringify(updatedOrders));
+
         // Update Firestore
         const userDocRef = doc(db, 'users', u.id);
-        await updateDoc(userDocRef, { orders: updatedOrders });
+        await updateDoc(userDocRef, { orders: sanitizedOrders });
 
         // Generate Email Notification via AI
         const order = u.orders.find(o => o.id === orderId);
@@ -795,10 +798,14 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       if (u.orders?.some(o => o.id === orderId)) {
         const updatedOrders = u.orders.map(o => o.id === orderId ? { ...o, internalNotes: notes } : o);
 
+        // Optimistic State Update for Admin
         setAllUsers(prev => prev.map(user => user.id === u.id ? { ...user, orders: updatedOrders } : user));
 
+        // Sanitize for Firestore persistence
+        const sanitizedOrders = JSON.parse(JSON.stringify(updatedOrders));
+
         const userDocRef = doc(db, 'users', u.id);
-        await updateDoc(userDocRef, { orders: updatedOrders });
+        await updateDoc(userDocRef, { orders: sanitizedOrders });
         return;
       }
     }

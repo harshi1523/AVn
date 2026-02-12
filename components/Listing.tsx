@@ -65,24 +65,24 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
     ];
 
     return (
-        <div className="min-h-screen max-w-7xl mx-auto px-4 md:px-8 pt-8">
-            <div className="flex flex-col lg:flex-row gap-12 items-start">
-                <aside className="hidden lg:block w-72 sticky top-32 h-[calc(100vh-160px)] overflow-y-auto no-scrollbar pr-4">
+        <div className="min-h-screen max-w-7xl mx-auto px-4 md:px-8 pt-10">
+            <div className="flex flex-col lg:flex-row gap-14 items-start">
+                <aside className="hidden lg:block w-80 sticky top-32 h-[calc(100vh-160px)] overflow-y-auto no-scrollbar pr-4">
                     <div className="space-y-12">
                         {/* Categories Section */}
                         <div>
-                            <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em] mb-6">Categories</h3>
-                            <div className="flex flex-col gap-3">
+                            <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] mb-7">Categories</h3>
+                            <div className="flex flex-col gap-3.5">
                                 {categories.map((cat) => (
                                     <button
                                         key={cat.value}
                                         onClick={() => onCategoryChange?.(cat.value)}
-                                        className={`group w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-300 ${category === cat.value
-                                            ? 'bg-white text-black scale-100 shadow-xl'
-                                            : 'text-white hover:bg-white/5'
+                                        className={`group w-full flex items-center gap-4 px-7 py-5 rounded-2xl text-xs font-black uppercase tracking-[0.15em] transition-all duration-300 ${category === cat.value
+                                            ? 'bg-white text-black scale-100 shadow-elevated'
+                                            : 'text-white hover:bg-white/5 hover:scale-105'
                                             }`}
                                     >
-                                        <span className={`material-symbols-outlined text-[20px] transition-colors ${category === cat.value ? 'text-black' : 'text-white'
+                                        <span className={`material-symbols-outlined text-[22px] transition-colors ${category === cat.value ? 'text-black' : 'text-white'
                                             }`}>{cat.icon}</span>
                                         {cat.label}
                                     </button>
@@ -92,15 +92,15 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
 
                         {/* Rent or Buy Section */}
                         <div>
-                            <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em] mb-6">Rent or Buy</h3>
-                            <div className="p-1.5 bg-brand-card border border-white/5 rounded-2xl flex relative">
+                            <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] mb-7">Rent or Buy</h3>
+                            <div className="p-2 bg-brand-card border border-white/5 rounded-2xl flex relative">
                                 {['all', 'rent', 'buy'].map((t) => {
                                     const isActive = selectedType === t;
                                     return (
                                         <button
                                             key={t}
                                             onClick={() => setSelectedType(t as 'all' | 'rent' | 'buy')}
-                                            className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative z-10 ${isActive
+                                            className={`flex-1 py-3.5 px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 relative z-10 ${isActive
                                                 ? 'bg-white text-black shadow-lg'
                                                 : 'text-white'
                                                 }`}
@@ -119,25 +119,25 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                         {favoritesOnly ? 'Wishlist' : (category === 'All' ? 'Full Collection' : `${category} Collection`)}
                     </h3>
 
-                    <div className="grid grid-cols-2 xl:grid-cols-3 gap-6 mb-12">
+                    <div className="grid grid-cols-2 xl:grid-cols-3 gap-7 mb-12">
                         {filteredProducts.map((product) => (
-                            <div key={product.id} onClick={() => onProductClick(product.id)} className="group relative bg-brand-card border border-white/5 rounded-[2rem] overflow-hidden cursor-pointer transition-all hover:border-brand-primary/40 hover:-translate-y-2 flex flex-col h-full shadow-xl">
-                                <div className="aspect-square bg-black/40 p-6 flex items-center justify-center">
+                            <div key={product.id} onClick={() => onProductClick(product.id)} className="group relative bg-brand-card border border-white/5 rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 hover:border-brand-primary/40 hover:-translate-y-2 hover:shadow-card-hover flex flex-col h-full">
+                                <div className="aspect-square bg-black/40 p-8 flex items-center justify-center">
                                     <img src={product.image} alt={product.name} className="w-[85%] h-[85%] object-contain group-hover:scale-110 transition-all duration-700" />
                                     {/* Status Badge */}
                                     {product.status && product.status !== 'AVAILABLE' && (
-                                        <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border backdrop-blur-md ${product.status === 'OUT_OF_STOCK' ? 'bg-red-500/20 text-red-500 border-red-500/30' :
-                                                product.status === 'RENTED' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
-                                                    'bg-yellow-500/20 text-yellow-500 border-yellow-500/30' // Low Stock
+                                        <div className={`absolute top-5 right-5 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border backdrop-blur-md shadow-lg ${product.status === 'OUT_OF_STOCK' ? 'bg-red-500/20 text-red-500 border-red-500/30' :
+                                            product.status === 'RENTED' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                                                'bg-yellow-500/20 text-yellow-500 border-yellow-500/30' // Low Stock
                                             }`}>
                                             {product.status.replace('_', ' ')}
                                         </div>
                                     )}
                                 </div>
-                                <div className="p-6 flex-1 flex flex-col">
-                                    <h4 className="font-bold text-white mb-2 line-clamp-2 text-base uppercase tracking-tight">{product.name}</h4>
+                                <div className="p-7 flex-1 flex flex-col">
+                                    <h4 className="font-bold text-white mb-2 line-clamp-2 text-lg uppercase tracking-tight">{product.name}</h4>
                                     <div className="mt-auto pt-4 border-t border-white/5 flex items-center justify-between">
-                                        <p className="text-lg font-bold text-white">₹{product.price.toLocaleString()}</p>
+                                        <p className="text-xl font-bold text-white">₹{product.price.toLocaleString()}</p>
                                         <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{product.condition}</span>
                                     </div>
                                 </div>

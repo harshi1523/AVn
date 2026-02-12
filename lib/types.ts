@@ -47,7 +47,7 @@ export interface Order {
     userEmail?: string;
     items: CartItem[];
     total: number;
-    status: 'Placed' | 'Awaiting Delivery' | 'In Transit' | 'Delivered' | 'In Use' | 'Returning' | 'Inspection' | 'Completed' | 'Cancelled';
+    status: 'Placed' | 'Processing' | 'Shipped' | 'Awaiting Delivery' | 'In Transit' | 'Delivered' | 'In Use' | 'Returning' | 'Inspection' | 'Completed' | 'Cancelled';
     address: string;
     rentalStartDate?: string;
     rentalEndDate?: string;

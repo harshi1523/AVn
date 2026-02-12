@@ -163,11 +163,11 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
               onChange={(e) => setDocType(e.target.value)}
               className="w-full bg-dark-card border border-white/10 rounded-2xl p-4 text-white appearance-none focus:outline-none focus:border-brand-primary transition-colors text-sm font-medium"
             >
-              <option>Aadhaar Card</option>
-              <option>PAN Card</option>
-              <option>Voter ID</option>
-              <option>Driving License</option>
-              <option>Passport</option>
+              <option style={{ backgroundColor: 'white', color: 'black' }}>Aadhaar Card</option>
+              <option style={{ backgroundColor: 'white', color: 'black' }}>PAN Card</option>
+              <option style={{ backgroundColor: 'white', color: 'black' }}>Voter ID</option>
+              <option style={{ backgroundColor: 'white', color: 'black' }}>Driving License</option>
+              <option style={{ backgroundColor: 'white', color: 'black' }}>Passport</option>
             </select>
             <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
               unfold_more

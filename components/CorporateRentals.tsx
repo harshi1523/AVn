@@ -60,18 +60,18 @@ export default function CorporateRentals() {
           </div>
         </div>
         <div className="bg-brand-black p-10 rounded-[2rem] border border-white/5 shadow-inner">
-           <h3 className="text-[11px] font-black text-white/30 uppercase tracking-[0.4em] mb-8 text-center">Inquiry Manifest</h3>
-           <div className="space-y-5">
-             <input type="text" placeholder="ENTITY_NAME" className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white placeholder:text-white/10 text-xs font-bold tracking-widest" />
-             <input type="email" placeholder="COMMS_ADDRESS" className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white placeholder:text-white/10 text-xs font-bold tracking-widest" />
-             <select className="w-full bg-brand-black border border-white/10 p-4 rounded-xl text-white/40 text-xs font-bold tracking-widest focus:outline-none">
-               <option>PAYLOAD_VOLUME</option>
-               <option>1-10 NODES</option>
-               <option>10-50 NODES</option>
-               <option>50+ NODES</option>
-             </select>
-             <button className="w-full bg-white text-black font-black py-5 rounded-xl text-[10px] uppercase tracking-[0.5em] mt-4 shadow-2xl active:scale-95 transition-all">Submit Request</button>
-           </div>
+          <h3 className="text-[11px] font-black text-white/30 uppercase tracking-[0.4em] mb-8 text-center">Inquiry Manifest</h3>
+          <div className="space-y-5">
+            <input type="text" placeholder="ENTITY_NAME" className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white placeholder:text-white/10 text-xs font-bold tracking-widest" />
+            <input type="email" placeholder="COMMS_ADDRESS" className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white placeholder:text-white/10 text-xs font-bold tracking-widest" />
+            <select className="w-full bg-brand-black border border-white/10 p-4 rounded-xl text-white/40 text-xs font-bold tracking-widest focus:outline-none">
+              <option style={{ backgroundColor: 'white', color: 'black' }}>PAYLOAD_VOLUME</option>
+              <option style={{ backgroundColor: 'white', color: 'black' }}>1-10 NODES</option>
+              <option style={{ backgroundColor: 'white', color: 'black' }}>10-50 NODES</option>
+              <option style={{ backgroundColor: 'white', color: 'black' }}>50+ NODES</option>
+            </select>
+            <button className="w-full bg-white text-black font-black py-5 rounded-xl text-[10px] uppercase tracking-[0.5em] mt-4 shadow-2xl active:scale-95 transition-all">Submit Request</button>
+          </div>
         </div>
       </div>
     </div>

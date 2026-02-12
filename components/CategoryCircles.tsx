@@ -16,37 +16,37 @@ const categories = [
 
 export default function CategoryCircles({ onNavigate }: CategoryCirclesProps) {
   return (
-    <section className="py-12">
+    <section className="py-16">
       <div className="mx-auto max-w-7xl px-4 md:px-8">
-        <h2 className="text-xl md:text-2xl text-white mb-10 flex items-center gap-5">
-            <span className="text-white venus-heading">Categories</span>
-            <div className="flex-1 h-px bg-white/10"></div>
+        <h2 className="text-2xl md:text-3xl text-white mb-12 flex items-center gap-6">
+          <span className="text-white venus-heading">Categories</span>
+          <div className="flex-1 h-px bg-white/10"></div>
         </h2>
-        
-        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-10 md:grid md:grid-cols-7">
+
+        <div className="flex gap-5 overflow-x-auto no-scrollbar pb-12 md:grid md:grid-cols-7 md:gap-6">
           {categories.map((cat, idx) => (
-            <div 
-                key={idx} 
-                className="group relative flex-shrink-0 w-40 md:w-auto cursor-pointer"
-                onClick={() => onNavigate('listing', { category: cat.filter })}
+            <div
+              key={idx}
+              className="group relative flex-shrink-0 w-44 md:w-auto cursor-pointer"
+              onClick={() => onNavigate('listing', { category: cat.filter })}
             >
-              <div className="relative aspect-[4/5] rounded-[2rem] overflow-hidden bg-brand-card border border-white/10 transition-all duration-500 hover:border-white/40 hover:shadow-[0_0_50px_rgba(255,255,255,0.05)] hover:-translate-y-2">
-                
+              <div className="relative aspect-[4/5] rounded-3xl overflow-hidden bg-brand-card border border-white/10 transition-all duration-500 hover:border-white/40 hover:shadow-[0_0_60px_rgba(255,255,255,0.08)] hover:-translate-y-3 hover:scale-105">
+
                 {/* Image Overlay with full color and improved opacity */}
-                <img 
-                    src={cat.img} 
-                    alt={cat.name} 
-                    className="w-full h-full object-cover transition-all duration-1000 group-hover:scale-125 opacity-50 group-hover:opacity-100" 
+                <img
+                  src={cat.img}
+                  alt={cat.name}
+                  className="w-full h-full object-cover transition-all duration-1000 group-hover:scale-125 opacity-50 group-hover:opacity-100"
                 />
-                
+
                 {/* Gradient for text contrast */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent z-10"></div>
-                
-                <div className="absolute bottom-0 left-0 right-0 p-6 z-20 flex flex-col items-center">
-                    <div className="w-14 h-14 rounded-2xl bg-black/80 backdrop-blur-xl border border-white/20 flex items-center justify-center mb-4 text-white group-hover:bg-white group-hover:text-black group-hover:scale-110 transition-all duration-500 shadow-2xl">
-                        <span className="material-symbols-outlined text-3xl font-light">{cat.icon}</span>
-                    </div>
-                    <span className="text-[10px] font-black text-white transition-colors tracking-[0.3em] uppercase">{cat.name}</span>
+
+                <div className="absolute bottom-0 left-0 right-0 p-7 z-20 flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-2xl bg-black/80 backdrop-blur-xl border border-white/20 flex items-center justify-center mb-5 text-white group-hover:bg-white group-hover:text-black group-hover:scale-110 transition-all duration-500 shadow-2xl">
+                    <span className="material-symbols-outlined text-3xl font-light">{cat.icon}</span>
+                  </div>
+                  <span className="text-[11px] font-black text-white transition-colors tracking-[0.3em] uppercase">{cat.name}</span>
                 </div>
               </div>
             </div>

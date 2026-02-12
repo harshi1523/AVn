@@ -229,9 +229,9 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                 onChange={handleChange}
                                 className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
                             >
-                                <option value="rent">Rent</option>
-                                <option value="buy">Buy</option>
-                                <option value="rent_and_buy">Buy & Rent</option>
+                                <option value="rent" style={{ backgroundColor: 'white', color: 'black' }}>Rent</option>
+                                <option value="buy" style={{ backgroundColor: 'white', color: 'black' }}>Buy</option>
+                                <option value="rent_and_buy" style={{ backgroundColor: 'white', color: 'black' }}>Buy & Rent</option>
                             </select>
                         </div>
                         <div className="space-y-2">
@@ -245,13 +245,13 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                 }}
                                 className={`w-full bg-black/40 border ${errors.category ? 'border-red-500' : 'border-brand-border'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm`}
                             >
-                                <option value="" disabled>Select Category</option>
-                                <option value="Laptop">Laptop</option>
-                                <option value="Desktop">Desktop</option>
-                                <option value="Monitor">Monitor</option>
-                                <option value="Audio">Audio</option>
-                                <option value="Gaming">Gaming</option>
-                                <option value="Accessories">Accessories</option>
+                                <option value="" disabled style={{ backgroundColor: 'white', color: 'gray' }}>Select Category</option>
+                                <option value="Laptop" style={{ backgroundColor: 'white', color: 'black' }}>Laptop</option>
+                                <option value="Desktop" style={{ backgroundColor: 'white', color: 'black' }}>Desktop</option>
+                                <option value="Monitor" style={{ backgroundColor: 'white', color: 'black' }}>Monitor</option>
+                                <option value="Audio" style={{ backgroundColor: 'white', color: 'black' }}>Audio</option>
+                                <option value="Gaming" style={{ backgroundColor: 'white', color: 'black' }}>Gaming</option>
+                                <option value="Accessories" style={{ backgroundColor: 'white', color: 'black' }}>Accessories</option>
                             </select>
                             {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
                         </div>
@@ -266,13 +266,13 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                 }}
                                 className={`w-full bg-black/40 border ${errors.brand ? 'border-red-500' : 'border-brand-border'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm`}
                             >
-                                <option value="" disabled>Select Brand</option>
-                                <option value="Apple">Apple</option>
-                                <option value="Dell">Dell</option>
-                                <option value="HP">HP</option>
-                                <option value="Lenovo">Lenovo</option>
-                                <option value="Asus">Asus</option>
-                                <option value="Generic">Other</option>
+                                <option value="" disabled style={{ backgroundColor: 'white', color: 'gray' }}>Select Brand</option>
+                                <option value="Apple" style={{ backgroundColor: 'white', color: 'black' }}>Apple</option>
+                                <option value="Dell" style={{ backgroundColor: 'white', color: 'black' }}>Dell</option>
+                                <option value="HP" style={{ backgroundColor: 'white', color: 'black' }}>HP</option>
+                                <option value="Lenovo" style={{ backgroundColor: 'white', color: 'black' }}>Lenovo</option>
+                                <option value="Asus" style={{ backgroundColor: 'white', color: 'black' }}>Asus</option>
+                                <option value="Generic" style={{ backgroundColor: 'white', color: 'black' }}>Other</option>
                             </select>
                             {errors.brand && <p className="text-red-500 text-xs mt-1">{errors.brand}</p>}
                         </div>
@@ -287,10 +287,10 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                 onChange={handleChange}
                                 className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
                             >
-                                <option value="AVAILABLE">Available</option>
-                                <option value="LOW STOCK">Low Stock</option>
-                                <option value="OUT_OF_STOCK">Out of Stock</option>
-                                <option value="RENTED">Rented</option>
+                                <option value="AVAILABLE" style={{ backgroundColor: 'white', color: 'black' }}>Available</option>
+                                <option value="LOW STOCK" style={{ backgroundColor: 'white', color: 'black' }}>Low Stock</option>
+                                <option value="OUT_OF_STOCK" style={{ backgroundColor: 'white', color: 'black' }}>Out of Stock</option>
+                                <option value="RENTED" style={{ backgroundColor: 'white', color: 'black' }}>Rented</option>
                             </select>
                         </div>
                         <div className="space-y-2">
@@ -301,9 +301,9 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                 onChange={handleChange}
                                 className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
                             >
-                                <option value="New">New</option>
-                                <option value="Refurbished">Refurbished</option>
-                                <option value="Open Box">Open Box</option>
+                                <option value="New" style={{ backgroundColor: 'white', color: 'black' }}>New</option>
+                                <option value="Refurbished" style={{ backgroundColor: 'white', color: 'black' }}>Refurbished</option>
+                                <option value="Open Box" style={{ backgroundColor: 'white', color: 'black' }}>Open Box</option>
                             </select>
                         </div>
                     </div>
