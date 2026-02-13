@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useStore } from "../lib/store";
 import AdminDashboard from "./AdminDashboard";
 import { generateInvoice } from "../lib/invoice";
-import ToastNotification from "./ToastNotification";
+import { useToast } from "../lib/ToastContext"; // Use Global Toast
 import AddressModal from "./AddressModal";
 import { Address } from "../lib/types";
 
@@ -12,6 +12,7 @@ interface DashboardProps {
 
 export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
     const { user, orders, tickets, addTicket, logout, updateRentalPreferences, refreshProfile, removeAddress, setDefaultAddress, updateOrderStatus } = useStore();
+    const { showToast } = useToast(); // Global Toast
     const [activeTab, setActiveTab] = useState<'rentals' | 'orders' | 'support'>(initialTab);
     const [ticketSubject, setTicketSubject] = useState("");
     const [ticketDescription, setTicketDescription] = useState("");
@@ -32,13 +33,6 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
     const [extensionMonths, setExtensionMonths] = useState(3);
     const [returnReason, setReturnReason] = useState('');
 
-    // Toast State
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error'; visible: boolean } | null>(null);
-
-    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-        setToast({ message, type, visible: true });
-    };
-
     // Rental Management Handlers
     const handleExtendRental = () => {
         if (selectedRental) {
@@ -52,16 +46,21 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
 
     const handleRequestReturn = async () => {
         if (selectedRental && returnReason.trim()) {
-            // Update order status to 'Return Requested' and add note
-            await updateOrderStatus(selectedRental.orderId, 'Return Requested', {
-                courier: 'Return Request',
-                trackingNumber: returnReason
-            });
+            try {
+                // Update order status to 'Return Requested' and add note
+                await updateOrderStatus(selectedRental.orderId, 'Return Requested', {
+                    courier: 'Return Request',
+                    trackingNumber: returnReason
+                });
 
-            showToast('Return request submitted successfully! Our team will contact you soon.', 'success');
-            setIsReturnModalOpen(false);
-            setSelectedRental(null);
-            setReturnReason('');
+                showToast('Return request submitted successfully! Our team will contact you soon.', 'success');
+                setIsReturnModalOpen(false);
+                setSelectedRental(null);
+                setReturnReason('');
+            } catch (error: any) {
+                console.error("Failed to submit return request:", error);
+                showToast(error.message || 'Failed to submit return request. Please try again.', 'error');
+            }
         } else {
             showToast('Please provide a reason for return', 'error');
         }
@@ -293,8 +292,11 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                                                                 <h4 className="font-bold text-white text-lg mb-1">{item.name}</h4>
                                                                 <p className="text-sm text-brand-muted">Order ID: ORD_{order.id}</p>
                                                             </div>
-                                                            <span className="bg-green-500/20 text-green-400 px-4 py-1.5 rounded-full text-xs font-semibold border border-green-500/30">
-                                                                ACTIVE
+                                                            <span className={`px-4 py-1.5 rounded-full text-xs font-semibold border ${order.status === 'Return Requested'
+                                                                ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                                                                : 'bg-green-500/20 text-green-400 border-green-500/30'
+                                                                }`}>
+                                                                {order.status === 'Delivered' ? 'ACTIVE' : order.status}
                                                             </span>
                                                         </div>
                                                         <div className="grid grid-cols-3 gap-4 text-sm mt-4">
@@ -399,16 +401,38 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                                                 {order.status}
                                             </span>
                                             <div className="flex items-center gap-4">
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedRental({ orderId: order.id, item: order.items[0] });
-                                                        setIsReturnModalOpen(true);
-                                                    }}
-                                                    className="text-sm font-semibold text-yellow-400 hover:underline flex items-center gap-1"
-                                                >
-                                                    <span className="material-symbols-outlined text-sm">assignment_return</span>
-                                                    Request Return
-                                                </button>
+                                                {['Placed', 'Processing', 'Shipped'].includes(order.status) && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (confirm('Are you sure you want to cancel this order?')) {
+                                                                try {
+                                                                    await updateOrderStatus(order.id, 'Cancelled');
+                                                                    showToast('Order cancelled successfully', 'success');
+                                                                } catch (error: any) {
+                                                                    showToast(error.message || 'Failed to cancel order', 'error');
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="text-sm font-semibold text-red-400 hover:underline flex items-center gap-1"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">cancel</span>
+                                                        Cancel Order
+                                                    </button>
+                                                )}
+
+                                                {order.status === 'Delivered' && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedRental({ orderId: order.id, item: order.items[0] });
+                                                            setIsReturnModalOpen(true);
+                                                        }}
+                                                        className="text-sm font-semibold text-yellow-400 hover:underline flex items-center gap-1"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">assignment_return</span>
+                                                        Request Return
+                                                    </button>
+                                                )}
+
                                                 <button
                                                     onClick={async () => {
                                                         await generateInvoice(order, user);
@@ -961,14 +985,7 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                 </div>
             )}
 
-            {/* Toast Notification */}
-            {toast?.visible && (
-                <ToastNotification
-                    message={toast.message}
-                    type={toast.type}
-                    onClose={() => setToast(null)}
-                />
-            )}
+            {/* Rental Details Modal */}
         </div >
     );
 }

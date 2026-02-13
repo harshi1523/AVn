@@ -17,10 +17,10 @@ export default function ToastNotification({ message, type, onClose, duration = 3
     }, [duration, onClose]);
 
     return (
-        <div className="fixed top-8 right-8 z-[100] animate-in slide-in-from-top-5 duration-300">
+        <div className="fixed top-8 right-8 z-[9999] transition-all duration-300">
             <div className={`min-w-[320px] max-w-md rounded-2xl p-4 shadow-2xl border backdrop-blur-sm ${type === 'success'
-                    ? 'bg-green-500/90 border-green-400 text-white'
-                    : 'bg-red-500/90 border-red-400 text-white'
+                ? 'bg-green-500/90 border-green-400 text-white'
+                : 'bg-red-500/90 border-red-400 text-white'
                 }`}>
                 <div className="flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center ${type === 'success' ? 'bg-white/20' : 'bg-white/20'

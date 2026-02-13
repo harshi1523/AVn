@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { StoreProvider, useStore } from "./lib/store";
+import { ToastProvider } from "./lib/ToastContext";
 import Navbar from "./components/Navbar";
 import Home from "./components/Home";
 import Listing from "./components/Listing";
@@ -155,7 +156,9 @@ function AppContent() {
 export default function App() {
   return (
     <StoreProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </StoreProvider>
   );
 }

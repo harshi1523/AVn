@@ -751,8 +751,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   };
 
   const updateOrderStatus = async (orderId: string, status: Order['status'], trackingInfo?: Order['trackingInfo']) => {
-    // Find usage in allUsers
-    // Note: This relies on allUsers being populated (which is true for Admin)
+    // 1. Try to find/update in allUsers (Admin scenario)
     for (const u of allUsers) {
       if (u.orders?.some(o => o.id === orderId)) {
         const updatedOrders = u.orders.map(o => {
@@ -790,6 +789,43 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
         return;
       }
     }
+
+    // 2. If not found in allUsers, check current user (User scenario)
+    if (user && user.orders?.some(o => o.id === orderId)) {
+      const updatedOrders = user.orders.map(o => {
+        if (o.id === orderId) {
+          const newTimeline = o.timeline || [];
+          newTimeline.push({
+            status,
+            date: new Date().toISOString(),
+            note: trackingInfo ? `Tracking: ${trackingInfo.courier} - ${trackingInfo.trackingNumber}` : undefined
+          });
+
+          return {
+            ...o,
+            status,
+            timeline: newTimeline,
+            trackingInfo: trackingInfo || o.trackingInfo
+          };
+        }
+        return o;
+      });
+
+      // Optimistic Update
+      setOrders(updatedOrders);
+      setUser({ ...user, orders: updatedOrders });
+
+      // Firestore Update
+      const sanitizedOrders = JSON.parse(JSON.stringify(updatedOrders));
+      const userDocRef = doc(db, 'users', user.id);
+      await updateDoc(userDocRef, { orders: sanitizedOrders });
+
+      // Email logic
+      const order = user.orders.find(o => o.id === orderId);
+      if (order) generateAIEmail({ ...order, status, trackingInfo }, 'update');
+      return;
+    }
+
     console.error("Order not found for update:", orderId);
   };
 
