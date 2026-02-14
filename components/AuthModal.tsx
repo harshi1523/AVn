@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useStore } from "../lib/store";
 
 export default function AuthModal() {
-  const { isAuthOpen, toggleAuth, login, loginWithGoogle, signup, resetPassword } = useStore();
+  const { isAuthOpen, toggleAuth, login, loginWithGoogle, signup, resetPassword, logout } = useStore();
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot-password'>('login');
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,7 +51,7 @@ export default function AuthModal() {
         const event = new CustomEvent('navigate', { detail: { view: 'dashboard' } });
         window.dispatchEvent(event);
       } else if (mode === 'signup') {
-        const event = new CustomEvent('navigate', { detail: { view: 'kyc' } });
+        const event = new CustomEvent('navigate', { detail: { view: 'home' } });
         window.dispatchEvent(event);
       } else {
         const event = new CustomEvent('navigate', { detail: { view: 'home' } });
@@ -68,13 +68,20 @@ export default function AuthModal() {
     if (!res.success) {
       setError(res.message);
     } else {
-      // Success handling with redirection to home
-      if (res.role === 'admin') {
-        const event = new CustomEvent('navigate', { detail: { view: 'dashboard' } });
-        window.dispatchEvent(event);
+      // Check if trying to signup but user already exists
+      if (mode === 'signup' && !res.isNewUser) {
+        setError("User already exists. Please log in.");
+        // Logout immediately to clear the session
+        await logout();
       } else {
-        const event = new CustomEvent('navigate', { detail: { view: 'home' } });
-        window.dispatchEvent(event);
+        // Success handling with redirection to home
+        if (res.role === 'admin') {
+          const event = new CustomEvent('navigate', { detail: { view: 'dashboard' } });
+          window.dispatchEvent(event);
+        } else {
+          const event = new CustomEvent('navigate', { detail: { view: 'home' } });
+          window.dispatchEvent(event);
+        }
       }
     }
     setLoading(false);

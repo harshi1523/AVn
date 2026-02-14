@@ -27,7 +27,7 @@ interface StoreContextType {
   isAuthOpen: boolean;
   isDBReady: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; message: string; role?: string }>;
-  loginWithGoogle: () => Promise<{ success: boolean; message: string; role?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; message: string; role?: string; isNewUser?: boolean }>;
   signup: (name: string, email: string, password: string) => Promise<{ success: boolean; message: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; message: string }>;
   addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
@@ -313,6 +313,15 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       const userCredential = await signInWithPopup(auth, provider);
       const firebaseUser = userCredential.user;
 
+      // Check if it's a new user (modern Firebase v9 approach uses getAdditionalUserInfo, 
+      // but userCredential.additionalUserInfo might be available in compat or older types. 
+      // Let's use getAdditionalUserInfo if imported, but safely we can check via userDoc existence 
+      // OR use the provider result. 
+      // Actually, let's look at imports. getAdditionalUserInfo is NOT imported.
+      // Let's import it or just use the logic we already have: !userDoc.exists() means new to OUR DB.
+      // But user might have signed in with Google before? 
+      // If userDoc exists, they are an existing user.
+
       const userDocRef = doc(db, 'users', firebaseUser.uid);
       const userDoc = await getDoc(userDocRef);
 
@@ -321,7 +330,9 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
         email: firebaseUser.email || '',
       };
 
-      if (!userDoc.exists()) {
+      let isNewUser = !userDoc.exists();
+
+      if (isNewUser) {
         const newUser: User = {
           id: firebaseUser.uid,
           ...baseProfile,
@@ -341,7 +352,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
       setIsAuthOpen(false);
       const role = userDoc.exists() ? userDoc.data().role : 'customer';
-      return { success: true, message: 'Logged in successfully', role };
+      return { success: true, message: 'Logged in successfully', role, isNewUser };
     } catch (err: any) {
       return { success: false, message: err.message };
     }
