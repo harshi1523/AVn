@@ -128,11 +128,16 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
         }
 
         setIsProcessing(true);
-        setTimeout(() => {
-            placeOrder(deliveryAddress, paymentMethod, totalToPay, rentalDetails);
+        try {
+            await placeOrder(deliveryAddress, paymentMethod, totalToPay, rentalDetails);
             setIsProcessing(false);
             onSuccess(containsRental);
-        }, 1500);
+        } catch (error) {
+            setIsProcessing(false);
+            alert("Failed to place order. Please try again.");
+            console.error("Checkout Error:", error);
+        }
+
     };
 
     const handleAddAddress = async (e: React.FormEvent) => {
@@ -345,12 +350,22 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                     </div>
                 </div>
 
+                {/* PROCEED TO PAYMENT BUTTON (Bottom of list) */}
+                <div className="bg-white p-4 rounded shadow-sm border border-gray-100 flex justify-end">
+                    <button
+                        onClick={handleContinue}
+                        className="bg-orange-500 text-white font-bold py-4 px-12 rounded-sm shadow-md uppercase text-sm tracking-wide hover:bg-orange-600 transition-all duration-200"
+                    >
+                        Proceed to Payment
+                    </button>
+                </div>
+
             </div>
 
             {/* Right Column (Sticky Price Details) */}
             <div className="w-full lg:w-[350px] sticky top-24 h-fit">
                 <div className="bg-white rounded shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="p-4 border-b border-gray-100">
+                    <div className="p-4 border-b border-gray-100 bg-gray-50">
                         <h3 className="text-gray-500 font-bold text-sm uppercase tracking-wide">Price Details</h3>
                     </div>
                     <div className="p-4 space-y-4">
@@ -388,21 +403,22 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                             <img src="https://static-assets-web.flixcart.com/fk-p-linchpin-web/fk-cp-zion/img/shield_5f9216.png" className="w-6 h-6 grayscale opacity-60" alt="" />
                             <p className="text-[10px] text-gray-500 font-bold uppercase">Safe and Secure Payments. Easy returns. 100% Authentic products.</p>
                         </div>
-                        <button onClick={handleContinue} className="w-full bg-brand-accent text-white font-bold py-4 rounded-sm shadow-sm uppercase text-sm tracking-wide hover:brightness-110 transition-all duration-200">
-                            Continue
+                        <button onClick={handleContinue} className="w-full bg-orange-500 text-white font-bold py-4 rounded-sm shadow-sm uppercase text-sm tracking-wide hover:bg-orange-600 transition-all duration-200">
+                            Proceed to Payment
                         </button>
                     </div>
                 </div>
             </div>
+
         </div>
     );
 
     const renderPaymentStep = () => (
-        <div className="bg-white p-6 rounded shadow-sm max-w-2xl mx-auto">
-            <h3 className="text-lg font-bold text-gray-900 mb-6 bg-blue-600 text-white p-3 -mx-6 -mt-6 rounded-t">Select Payment Method</h3>
+        <div className="bg-white p-6 rounded shadow-sm max-w-2xl mx-auto border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-900 mb-6 bg-gray-50 border-b border-gray-100 p-3 -mx-6 -mt-6 rounded-t">Select Payment Method</h3>
 
             <div className="space-y-4">
-                <label className={`flex items-center gap-4 p-4 border rounded cursor-pointer ${paymentMethod === 'card' ? 'bg-blue-50 border-blue-600' : 'border-gray-200'}`}>
+                <label className={`flex items-center gap-4 p-4 border rounded cursor-pointer ${paymentMethod === 'card' ? 'bg-blue-50 border-blue-600' : 'border-gray-200 hover:bg-gray-50'}`}>
                     <input type="radio" name="payment" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} className="text-blue-600 w-5 h-5" />
                     <div className="flex-1">
                         <span className="font-bold text-gray-900 block">Credit / Debit / ATM Card</span>
@@ -410,7 +426,7 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                     </div>
                 </label>
 
-                <label className={`flex items-center gap-4 p-4 border rounded cursor-pointer ${paymentMethod === 'upi' ? 'bg-blue-50 border-blue-600' : 'border-gray-200'}`}>
+                <label className={`flex items-center gap-4 p-4 border rounded cursor-pointer ${paymentMethod === 'upi' ? 'bg-blue-50 border-blue-600' : 'border-gray-200 hover:bg-gray-50'}`}>
                     <input type="radio" name="payment" checked={paymentMethod === 'upi'} onChange={() => setPaymentMethod('upi')} className="text-blue-600 w-5 h-5" />
                     <div>
                         <span className="font-bold text-gray-900 block">UPI</span>
@@ -418,7 +434,7 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                     </div>
                 </label>
 
-                <label className={`flex items-center gap-4 p-4 border rounded cursor-pointer ${paymentMethod === 'net' ? 'bg-blue-50 border-blue-600' : 'border-gray-200'}`}>
+                <label className={`flex items-center gap-4 p-4 border rounded cursor-pointer ${paymentMethod === 'net' ? 'bg-blue-50 border-blue-600' : 'border-gray-200 hover:bg-gray-50'}`}>
                     <input type="radio" name="payment" checked={paymentMethod === 'net'} onChange={() => setPaymentMethod('net')} className="text-blue-600 w-5 h-5" />
                     <div>
                         <span className="font-bold text-gray-900 block">Net Banking</span>
@@ -426,7 +442,7 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                     </div>
                 </label>
 
-                {/* COD Option (disabled typically for expensive rentals but maybe allowed) */}
+                {/* COD Option (disabled Typically for expensive rentals but maybe allowed) */}
                 <label className={`flex items-center gap-4 p-4 border rounded cursor-pointer border-gray-200 opacity-60`}>
                     <input type="radio" name="payment" disabled className="text-gray-400 w-5 h-5" />
                     <div>
@@ -439,11 +455,12 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
             <button
                 onClick={handleContinue}
                 disabled={isProcessing}
-                className="w-full bg-brand-accent text-white font-bold py-4 rounded mt-8 text-sm uppercase shadow hover:brightness-110 disabled:opacity-70 flex items-center justify-center gap-2 transition-all duration-200"
+                className="w-full bg-orange-500 text-white font-bold py-4 rounded-sm mt-8 text-sm uppercase shadow-md hover:bg-orange-600 disabled:opacity-70 flex items-center justify-center gap-2 transition-all duration-200 tracking-wider"
             >
-                {isProcessing ? 'Processing...' : `Pay ₹${totalToPay.toLocaleString()}`}
+                {isProcessing ? 'Processing Order...' : `CONFIRM ORDER & PAY ₹${totalToPay.toLocaleString()}`}
             </button>
         </div>
+
     );
 
     return (

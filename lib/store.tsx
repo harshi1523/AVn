@@ -552,44 +552,56 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
     // FIRESTORE SANITIZATION: Remove undefined keys
     const sanitizedOrder = JSON.parse(JSON.stringify(newOrder));
-
-    const updatedOrders = [sanitizedOrder, ...orders];
     console.log("🚀 Placing Order:", sanitizedOrder.id);
-    console.log("🚀 User ID for Order:", user.id);
-    console.log("🚀 Total Orders after placement (Optimistic):", updatedOrders.length);
-
-    const userDocRef = doc(db, 'users', user.id);
-    await updateDoc(userDocRef, {
-      orders: updatedOrders,
-      cart: [] // Clear cart in Firestore
-    }).then(() => console.log("✅ Order successfully written to Firestore"))
-      .catch(err => console.error("❌ Error writing order to Firestore:", err));
-
-    // Create Financial Record
-    const financialRecord = {
-      id: newOrder.id,
-      orderId: newOrder.id,
-      userId: user.id,
-      userName: user.name,
-      amount: newOrder.total,
-      type: 'income',
-      date: newOrder.date,
-      timestamp: new Date().toISOString(),
-      paymentMethod: paymentMethod,
-      status: 'success',
-      items: newOrder.items.map(i => ({ name: i.name, quantity: i.quantity, price: i.price }))
-    };
 
     try {
-      await setDoc(doc(db, 'financials', newOrder.id), financialRecord);
-      console.log("✅ Financial record created for Order:", newOrder.id);
-    } catch (err) {
-      console.error("❌ Error creating financial record:", err);
-    }
+      const userDocRef = doc(db, 'users', user.id);
+      await updateDoc(userDocRef, {
+        orders: arrayUnion(sanitizedOrder),
+        cart: [] // Clear cart in Firestore
+      });
+      console.log("✅ Order successfully written to Firestore");
 
-    setOrders(updatedOrders); // Optimistic update
-    setCart([]); // Clear local cart immediately
-    generateAIEmail(newOrder, 'new');
+      // Create Financial Record
+      const financialRecord = {
+        id: newOrder.id,
+        orderId: newOrder.id,
+        userId: user.id,
+        userName: user.name,
+        amount: newOrder.total,
+        type: 'income',
+        date: newOrder.date,
+        timestamp: new Date().toISOString(),
+        paymentMethod: paymentMethod,
+        status: 'success',
+        items: newOrder.items.map(i => ({ name: i.name, quantity: i.quantity, price: i.price }))
+      };
+
+      try {
+        await setDoc(doc(db, 'financials', newOrder.id), financialRecord);
+        console.log("✅ Financial record created for Order:", newOrder.id);
+      } catch (err) {
+        console.error("❌ Error creating financial record:", err);
+      }
+
+      setOrders(prev => [sanitizedOrder, ...prev]);
+      setCart([]);
+
+      // Update user state optimistically to ensure user.orders is in sync
+      setUser(prevUser => {
+        if (!prevUser) return null;
+        return {
+          ...prevUser,
+          orders: [sanitizedOrder, ...(prevUser.orders || [])],
+          cart: []
+        };
+      });
+
+      generateAIEmail(newOrder, 'new');
+    } catch (err) {
+      console.error("❌ Error placing order:", err);
+      throw err;
+    }
   };
 
   const addTicket = async (subject: string, description: string) => {

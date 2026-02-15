@@ -94,7 +94,8 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
     }
 
     const activeRentals = orders.filter(o => o.items.some(i => i.type === 'rent'));
-    const pastOrders = orders;
+    const pastOrders = [...orders].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
 
     return (
         <div className="min-h-screen bg-brand-page">
