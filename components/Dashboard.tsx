@@ -4,6 +4,7 @@ import AdminDashboard from "./AdminDashboard";
 import { generateInvoice } from "../lib/invoice";
 import { useToast } from "../lib/ToastContext"; // Use Global Toast
 import AddressModal from "./AddressModal";
+import EditProfileModal from "./EditProfileModal";
 import { Address } from "../lib/types";
 
 interface DashboardProps {
@@ -34,9 +35,7 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
     const [returnReason, setReturnReason] = useState('');
 
     // Profile Edit State
-    const [isEditingProfile, setIsEditingProfile] = useState(false);
-    const [editedName, setEditedName] = useState(user?.name || '');
-    const [isUpdating, setIsUpdating] = useState(false);
+    const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
 
 
     // Rental Management Handlers
@@ -187,13 +186,22 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                     {/* Header */}
                     <div className="mb-8 flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-brand-primary flex items-center justify-center overflow-hidden border-2 border-brand-border">
-                                {user.avatar ? (
-                                    <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <span className="material-symbols-outlined text-white text-3xl">account_circle</span>
-                                )}
+                            <div className="relative group">
+                                <div className="w-16 h-16 rounded-full bg-brand-primary flex items-center justify-center overflow-hidden border-2 border-brand-border">
+                                    {user.avatar ? (
+                                        <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="material-symbols-outlined text-white text-4xl">account_circle</span>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => setIsEditProfileModalOpen(true)}
+                                    className="absolute inset-0 bg-black/60 text-white text-[10px] font-bold flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
+                                >
+                                    CHANGE
+                                </button>
                             </div>
+
                             <div>
                                 <p className="text-sm text-brand-muted">
                                     Hello <span className="font-semibold text-white">{user.name}</span> (not {user.name}? <button onClick={logout} className="text-brand-primary hover:underline">Log out</button>)
@@ -206,71 +214,41 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
 
                     {/* Account Details Card */}
                     {activeTab === 'rentals' && (
-                        <div className="bg-brand-card border border-brand-border rounded-2xl p-8 mb-6 shadow-xl">
-                            <h2 className="text-2xl font-bold text-white mb-8">Account details</h2>
+                        <div className="bg-brand-card border border-brand-border rounded-2xl p-8 mb-6 shadow-xl relative overflow-hidden">
+                            <div className="flex justify-between items-center mb-8">
+                                <h2 className="text-2xl font-bold text-white">Account details</h2>
+                                <button
+                                    onClick={() => setIsEditProfileModalOpen(true)}
+                                    className="bg-brand-primary text-white text-sm px-4 py-2 rounded-lg font-semibold hover:bg-brand-primaryHover transition-all shadow-glow flex items-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-sm">edit</span>
+                                    Edit Profile
+                                </button>
+                            </div>
+
 
                             <div className="space-y-6">
                                 <div className="grid grid-cols-2 gap-x-12 gap-y-6">
                                     <div>
-                                        <div className="flex items-center justify-between mb-2">
-                                            <label className="text-sm font-semibold text-brand-muted block">Name</label>
-                                            {!isEditingProfile && (
-                                                <button
-                                                    onClick={() => {
-                                                        setEditedName(user.name);
-                                                        setIsEditingProfile(true);
-                                                    }}
-                                                    className="text-brand-primary text-xs hover:underline flex items-center gap-1"
-                                                >
-                                                    <span className="material-symbols-outlined text-xs">edit</span>
-                                                    Edit
-                                                </button>
-                                            )}
-                                        </div>
-                                        {isEditingProfile ? (
-                                            <div className="flex gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={editedName}
-                                                    onChange={(e) => setEditedName(e.target.value)}
-                                                    className="bg-black/40 border border-brand-border rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:border-brand-primary flex-1"
-                                                    autoFocus
-                                                />
-                                                <button
-                                                    onClick={async () => {
-                                                        if (!editedName.trim()) return;
-                                                        setIsUpdating(true);
-                                                        try {
-                                                            await updateProfile({ name: editedName });
-                                                            setIsEditingProfile(false);
-                                                            showToast("Name updated successfully!", "success");
-                                                        } catch (err: any) {
-                                                            showToast(err.message || "Failed to update name", "error");
-                                                        } finally {
-                                                            setIsUpdating(false);
-                                                        }
-                                                    }}
-                                                    disabled={isUpdating}
-                                                    className="bg-brand-primary text-white text-xs px-3 py-1.5 rounded hover:bg-brand-primaryHover disabled:opacity-50"
-                                                >
-                                                    Save
-                                                </button>
-                                                <button
-                                                    onClick={() => setIsEditingProfile(false)}
-                                                    className="text-brand-muted text-xs px-3 py-1.5 hover:bg-white/5 rounded"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <p className="text-white">{user.name}</p>
-                                        )}
+                                        <label className="text-sm font-semibold text-brand-muted block mb-2">Name</label>
+                                        <p className="text-white">{user.name}</p>
                                     </div>
                                     <div>
                                         <label className="text-sm font-semibold text-brand-muted block mb-2">E-mail</label>
                                         <p className="text-white">{user.email}</p>
                                     </div>
                                 </div>
+                                <div className="grid grid-cols-2 gap-x-12 gap-y-6">
+                                    <div>
+                                        <label className="text-sm font-semibold text-brand-muted block mb-2">Phone</label>
+                                        <p className="text-white">{user.phone || 'Not provided'}</p>
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-semibold text-brand-muted block mb-2">Joined Date</label>
+                                        <p className="text-white">{user.joinedDate ? new Date(user.joinedDate).toLocaleDateString() : 'N/A'}</p>
+                                    </div>
+                                </div>
+
 
 
                                 {user.addresses && user.addresses.length > 0 && (
@@ -1057,7 +1035,10 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                 </div>
             )}
 
-            {/* Rental Details Modal */}
-        </div >
+            <EditProfileModal
+                isOpen={isEditProfileModalOpen}
+                onClose={() => setIsEditProfileModalOpen(false)}
+            />
+        </div>
     );
 }

@@ -3,7 +3,7 @@ import { products as initialProducts, Product } from './mockData';
 import { createAndUploadInvoice } from './invoice';
 import { GoogleGenAI } from "@google/genai";
 import { auth, db } from './firebase';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, updateProfile as updateAuthProfile, sendPasswordResetEmail } from "firebase/auth";
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, updateProfile as updateAuthProfile, updateEmail, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, collection, deleteDoc } from "firebase/firestore";
 import { getStorage, ref, deleteObject } from "firebase/storage";
 import { Notification, Address, CartItem, Order, Ticket, User, FinanceStats } from './types';
@@ -58,6 +58,7 @@ interface StoreContextType {
   savePendingCheckout: (details: User['pendingCheckout']) => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (details: Partial<User>) => Promise<void>;
+  updateEmailAddress: (newEmail: string) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -1063,6 +1064,20 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     }
   };
 
+  const updateEmailAddress = async (newEmail: string) => {
+    if (!auth.currentUser || !user) return;
+    try {
+      await updateEmail(auth.currentUser, newEmail);
+      const userDocRef = doc(db, 'users', user.id);
+      await updateDoc(userDocRef, { email: newEmail });
+      setUser(prev => prev ? { ...prev, email: newEmail } : null);
+      console.log("✅ Email updated successfully");
+    } catch (err) {
+      console.error("❌ Error updating email:", err);
+      throw err;
+    }
+  };
+
   const dismissNotification = (id: string) => { setNotifications(prev => prev.filter(n => n.id !== id)); };
 
   return (
@@ -1070,7 +1085,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       user, setUser, cart, orders, tickets, wishlist, allUsers, finance, products, notifications, isCartOpen, isAuthOpen, isDBReady,
       login, loginWithGoogle, signup, logout, resetPassword, addProduct, updateProduct, deleteProduct, addToCart, updateQuantity, removeFromCart, placeOrder, addTicket, addTicketMessage, updateTicketPriority, assignTicket, toggleWishlist,
       toggleCart: setIsCartOpen, toggleAuth: setIsAuthOpen, updateOrderStatus, updateTicketStatus, updateKYCStatus, updateUserStatus, dismissNotification,
-      addAddress, updateAddress, setDefaultAddress, removeAddress, updateRentalPreferences, savePendingCheckout, refreshProfile, updateProfile
+      addAddress, updateAddress, setDefaultAddress, removeAddress, updateRentalPreferences, savePendingCheckout, refreshProfile, updateProfile, updateEmailAddress
     }}>
       {children}
     </StoreContext.Provider>

@@ -107,6 +107,8 @@ export interface User {
     name: string;
     email: string;
     avatar?: string;
+    phone?: string;
+
     role: 'admin' | 'user';
     accountStatus?: 'active' | 'suspended';
     joinedDate?: string;
