@@ -20,19 +20,20 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
     const [localSearch, setLocalSearch] = useState("");
     const [selectedType, setSelectedType] = useState<'rent' | 'buy' | 'all'>(type || 'all');
     const [selectedCondition, setSelectedCondition] = useState<'New' | 'Refurbished' | 'All'>(refurbishedOnly ? 'Refurbished' : 'All');
+    const [sortBy, setSortBy] = useState<'popularity' | 'price-low' | 'price-high' | 'newest'>('popularity');
 
     useEffect(() => {
         setIsLoading(true);
         const timer = setTimeout(() => setIsLoading(false), 800);
         return () => clearTimeout(timer);
-    }, [category, type, searchQuery, favoritesOnly, refurbishedOnly, selectedType, selectedCondition]);
+    }, [category, type, searchQuery, favoritesOnly, refurbishedOnly, selectedType, selectedCondition, sortBy]);
 
     useEffect(() => {
         if (type) setSelectedType(type);
     }, [type]);
 
-    const filteredProducts = useMemo(() => {
-        let results = products;
+    const sortedAndFilteredProducts = useMemo(() => {
+        let results = [...products];
         if (favoritesOnly) {
             results = results.filter(p => wishlist.includes(p.id));
         } else {
@@ -45,7 +46,7 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                 });
             }
             if (category && category !== 'All') {
-                results = results.filter(p => p.category === category || (category === 'Desktop' && p.category === 'Monitor') || (category === 'Accessories' && ['Keyboards', 'Mice', 'Audio'].includes(p.category || '')));
+                results = results.filter(p => p.category === category);
             }
             if (selectedType !== 'all') {
                 results = results.filter(p => p.type === selectedType);
@@ -53,15 +54,35 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
             const activeCondition = refurbishedOnly ? 'Refurbished' : (selectedCondition !== 'All' ? selectedCondition : null);
             if (activeCondition) results = results.filter(p => p.condition === activeCondition);
         }
+
+        // Apply Sorting
+        switch (sortBy) {
+            case 'popularity':
+                results.sort((a, b) => (b.rating?.rate || 0) - (a.rating?.rate || 0));
+                break;
+            case 'price-low':
+                results.sort((a, b) => a.price - b.price);
+                break;
+            case 'price-high':
+                results.sort((a, b) => b.price - a.price);
+                break;
+            case 'newest':
+                results.sort((a, b) => Number(b.id) - Number(a.id));
+                break;
+        }
+
         return results;
-    }, [category, type, searchQuery, favoritesOnly, refurbishedOnly, selectedType, selectedCondition, localSearch, wishlist]);
+    }, [category, type, searchQuery, favoritesOnly, refurbishedOnly, selectedType, selectedCondition, localSearch, wishlist, sortBy, products]);
 
     const categories = [
         { label: 'All Products', value: 'All', icon: 'grid_view' },
         { label: 'Laptops', value: 'Laptop', icon: 'laptop_mac' },
         { label: 'Desktops', value: 'Desktop', icon: 'desktop_windows' },
-        { label: 'Accessories', value: 'Accessories', icon: 'keyboard' },
-        { label: 'Gaming', value: 'Gaming', icon: 'sports_esports' }
+        { label: 'Monitors', value: 'Monitor', icon: 'monitor' },
+        { label: 'Keyboards', value: 'Keyboards', icon: 'keyboard' },
+        { label: 'Mice', value: 'Mice', icon: 'mouse' },
+        { label: 'Gaming', value: 'Gaming', icon: 'sports_esports' },
+        { label: 'Audio', value: 'Audio', icon: 'headphones' }
     ];
 
     return (
@@ -115,12 +136,69 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                 </aside>
 
                 <div className="flex-1 w-full">
-                    <h3 className="venus-heading">
-                        {favoritesOnly ? 'Wishlist' : (category === 'All' ? 'Full Collection' : `${category} Collection`)}
-                    </h3>
+                    {/* Breadcrumbs */}
+                    <nav className="flex items-center gap-2 mb-6 text-[10px] font-black uppercase tracking-widest text-brand-muted">
+                        <span className="hover:text-white cursor-pointer transition-colors" onClick={() => onCategoryChange?.('All')}>Home</span>
+                        <span className="material-symbols-outlined text-[10px] scale-75">chevron_right</span>
+                        <span className="hover:text-white cursor-pointer transition-colors" onClick={() => onCategoryChange?.('All')}>Collection</span>
+                        {category !== 'All' && (
+                            <>
+                                <span className="material-symbols-outlined text-[10px] scale-75">chevron_right</span>
+                                <span className="text-white">{category}</span>
+                            </>
+                        )}
+                    </nav>
+
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 pb-6 border-b border-white/5">
+                        <div className="space-y-1">
+                            <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
+                                {favoritesOnly ? 'Wishlist' : (category === 'All' ? 'Full Collection' : `${category} Collection`)}
+                            </h2>
+                            <p className="text-[11px] font-black text-brand-muted uppercase tracking-[0.3em]">Showing {sortedAndFilteredProducts.length} Results</p>
+                        </div>
+
+                        {/* Desktop Sort Options */}
+                        <div className="hidden md:flex items-center gap-8">
+                            <span className="text-[10px] font-black text-brand-muted uppercase tracking-widest">Sort By</span>
+                            <div className="flex items-center gap-6">
+                                {[
+                                    { label: 'Popularity', value: 'popularity' },
+                                    { label: 'Price -- Low to High', value: 'price-low' },
+                                    { label: 'Price -- High to Low', value: 'price-high' },
+                                    { label: 'Newest First', value: 'newest' }
+                                ].map((opt) => (
+                                    <button
+                                        key={opt.value}
+                                        onClick={() => setSortBy(opt.value as any)}
+                                        className={`text-[10px] font-black uppercase tracking-widest transition-all relative py-2 ${sortBy === opt.value ? 'text-brand-primary' : 'text-white/40 hover:text-white'
+                                            }`}
+                                    >
+                                        {opt.label}
+                                        {sortBy === opt.value && (
+                                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-primary rounded-full shadow-glow" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Mobile Sort Dropdown */}
+                        <div className="md:hidden">
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value as any)}
+                                className="w-full bg-brand-card border border-white/10 rounded-2xl px-5 py-4 text-[11px] font-black uppercase tracking-widest text-white focus:outline-none focus:border-brand-primary transition-all appearance-none"
+                            >
+                                <option value="popularity">Popularity</option>
+                                <option value="price-low">Price -- Low to High</option>
+                                <option value="price-high">Price -- High to Low</option>
+                                <option value="newest">Newest First</option>
+                            </select>
+                        </div>
+                    </div>
 
                     <div className="grid grid-cols-2 xl:grid-cols-3 gap-7 mb-12">
-                        {filteredProducts.map((product) => (
+                        {sortedAndFilteredProducts.map((product) => (
                             <div key={product.id} onClick={() => onProductClick(product.id)} className="group relative bg-brand-card border border-white/5 rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 hover:border-brand-primary/40 hover:-translate-y-2 hover:shadow-card-hover flex flex-col h-full">
                                 <div className="aspect-square bg-black/40 p-8 flex items-center justify-center">
                                     <img src={product.image} alt={product.name} className="w-[85%] h-[85%] object-contain group-hover:scale-110 transition-all duration-700" />

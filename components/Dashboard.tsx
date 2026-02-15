@@ -25,6 +25,9 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [upiId, setUpiId] = useState(user?.rentalPreferences?.upiId || '');
     const [selectedMethod, setSelectedMethod] = useState<'card' | 'upi' | 'net_banking'>('upi');
+    const [cardNumber, setCardNumber] = useState('');
+    const [cardExpiry, setCardExpiry] = useState('');
+    const [cardCvc, setCardCvc] = useState('');
 
     // Rental Management States
     const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
@@ -684,14 +687,15 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                                 <button
                                     key={method.id}
                                     onClick={() => {
-                                        setUpiId(method.id === 'upi' ? (user?.rentalPreferences?.upiId || '') : '');
+                                        setSelectedMethod(method.id as any);
+                                        if (method.id === 'upi') setUpiId(user?.rentalPreferences?.upiId || '');
                                     }}
-                                    className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${user?.rentalPreferences?.depositMethod === method.id
+                                    className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${selectedMethod === method.id
                                         ? 'bg-brand-primary/20 border-brand-primary'
                                         : 'bg-white/5 hover:bg-white/10 border-brand-border'
                                         }`}
                                 >
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${user?.rentalPreferences?.depositMethod === method.id
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedMethod === method.id
                                         ? 'bg-brand-primary text-white'
                                         : 'bg-black/40 text-brand-primary'
                                         }`}>
@@ -702,19 +706,64 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                             ))}
                         </div>
 
-                        <div className="mb-6">
-                            <label className="text-brand-muted text-sm font-semibold block mb-2">
-                                UPI ID (Optional)
-                            </label>
-                            <input
-                                type="text"
-                                placeholder="yourname@upi"
-                                value={upiId}
-                                onChange={(e) => setUpiId(e.target.value)}
-                                className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-brand-primary transition-all"
-                            />
-                            <p className="text-gray-500 text-xs mt-2">Enter your UPI ID for faster checkout</p>
-                        </div>
+                        {selectedMethod === 'upi' ? (
+                            <div className="mb-6">
+                                <label className="text-brand-muted text-sm font-semibold block mb-2">
+                                    UPI ID (Optional)
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="yourname@upi"
+                                    value={upiId}
+                                    onChange={(e) => setUpiId(e.target.value)}
+                                    className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-brand-primary transition-all"
+                                />
+                                <p className="text-gray-500 text-xs mt-2">Enter your UPI ID for faster checkout</p>
+                            </div>
+                        ) : selectedMethod === 'card' ? (
+                            <div className="mb-6 space-y-4">
+                                <div>
+                                    <label className="text-brand-muted text-sm font-semibold block mb-2">Card Number</label>
+                                    <input
+                                        type="text"
+                                        placeholder="0000 0000 0000 0000"
+                                        value={cardNumber}
+                                        onChange={(e) => setCardNumber(e.target.value.replace(/\s?/g, '').replace(/(\d{4})/g, '$1 ').trim())}
+                                        maxLength={19}
+                                        className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-brand-primary transition-all font-mono"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-brand-muted text-sm font-semibold block mb-2">Expiry</label>
+                                        <input
+                                            type="text"
+                                            placeholder="MM/YY"
+                                            value={cardExpiry}
+                                            onChange={(e) => setCardExpiry(e.target.value)}
+                                            maxLength={5}
+                                            className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-brand-primary transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-brand-muted text-sm font-semibold block mb-2">CVC</label>
+                                        <input
+                                            type="password"
+                                            placeholder="***"
+                                            value={cardCvc}
+                                            onChange={(e) => setCardCvc(e.target.value)}
+                                            maxLength={3}
+                                            className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-brand-primary transition-all"
+                                        />
+                                    </div>
+                                </div>
+                                <p className="text-gray-500 text-[10px] italic">Only card ending digits are stored. Actual sensitive data is processed securely.</p>
+                            </div>
+                        ) : (
+                            <div className="mb-6 bg-black/20 p-4 rounded-xl border border-brand-border">
+                                <p className="text-sm text-brand-muted text-center italic">Selected: Net Banking. Details will be collected during checkout.</p>
+                            </div>
+                        )}
 
                         <div className="flex gap-3">
                             <button
@@ -726,11 +775,13 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                             <button
                                 onClick={async () => {
                                     try {
-                                        await updateRentalPreferences({
-                                            depositMethod: user?.rentalPreferences?.depositMethod || 'upi',
+                                        const prefs = {
+                                            depositMethod: selectedMethod,
                                             isOnboardingComplete: true,
-                                            upiId: upiId || undefined
-                                        });
+                                            upiId: selectedMethod === 'upi' ? (upiId || undefined) : undefined,
+                                            cardLast4: selectedMethod === 'card' ? (cardNumber.replace(/\s/g, '').slice(-4)) : undefined
+                                        };
+                                        await updateRentalPreferences(prefs);
                                         showToast('Payment preferences saved successfully!');
                                         setIsPaymentModalOpen(false);
                                     } catch (error: any) {
