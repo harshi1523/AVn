@@ -3,7 +3,7 @@ import { products as initialProducts, Product } from './mockData';
 import { createAndUploadInvoice } from './invoice';
 import { GoogleGenAI } from "@google/genai";
 import { auth, db } from './firebase';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, updateProfile, sendPasswordResetEmail } from "firebase/auth";
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, updateProfile as updateAuthProfile, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, collection, deleteDoc } from "firebase/firestore";
 import { getStorage, ref, deleteObject } from "firebase/storage";
 import { Notification, Address, CartItem, Order, Ticket, User, FinanceStats } from './types';
@@ -57,6 +57,7 @@ interface StoreContextType {
   removeAddress: (id: string) => Promise<void>;
   savePendingCheckout: (details: User['pendingCheckout']) => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateProfile: (details: Partial<User>) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -361,7 +362,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   const signup = async (name: string, email: string, password: string) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(userCredential.user, { displayName: name });
+      await updateAuthProfile(userCredential.user, { displayName: name });
       const newUser: User = {
         id: userCredential.user.uid,
         name,
@@ -735,6 +736,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     const updatedAddresses = [...(user.addresses || []), newAddr];
     const userDocRef = doc(db, 'users', user.id);
     await updateDoc(userDocRef, { addresses: updatedAddresses });
+    setUser(prev => prev ? { ...prev, addresses: updatedAddresses } : null);
     return newAddr.id; // Return the new address ID
   };
 
@@ -746,6 +748,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     );
     const userDocRef = doc(db, 'users', user.id);
     await updateDoc(userDocRef, { addresses: updatedAddresses });
+    setUser(prev => prev ? { ...prev, addresses: updatedAddresses } : null);
   };
 
   const setDefaultAddress = async (id: string) => {
@@ -757,6 +760,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     }));
     const userDocRef = doc(db, 'users', user.id);
     await updateDoc(userDocRef, { addresses: updatedAddresses });
+    setUser(prev => prev ? { ...prev, addresses: updatedAddresses } : null);
   };
 
   const removeAddress = async (id: string) => {
@@ -771,6 +775,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     const updatedAddresses = (user.addresses || []).filter(a => a.id !== id);
     const userDocRef = doc(db, 'users', user.id);
     await updateDoc(userDocRef, { addresses: updatedAddresses });
+    setUser(prev => prev ? { ...prev, addresses: updatedAddresses } : null);
   };
 
   const updateOrderStatus = async (orderId: string, status: Order['status'], trackingInfo?: Order['trackingInfo']) => {
@@ -1030,6 +1035,34 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     setUser(prev => prev ? { ...prev, rentalPreferences: prefs } : null);
   };
 
+  const updateProfile = async (details: Partial<User>) => {
+    if (!user) return;
+    try {
+      const userDocRef = doc(db, 'users', user.id);
+
+      // Sanitize details to avoid undefined/null issues if necessary
+      const sanitizedDetails = JSON.parse(JSON.stringify(details));
+
+      await updateDoc(userDocRef, sanitizedDetails);
+
+      // Update local state
+      setUser(prev => prev ? { ...prev, ...details } : null);
+
+      // If name or avatar changed, update Firebase Auth profile too
+      if (details.name || details.avatar) {
+        await updateAuthProfile(auth.currentUser!, {
+          displayName: details.name || user.name,
+          photoURL: details.avatar || user.avatar
+        });
+      }
+
+      console.log("✅ Profile updated successfully");
+    } catch (err) {
+      console.error("❌ Error updating profile:", err);
+      throw err;
+    }
+  };
+
   const dismissNotification = (id: string) => { setNotifications(prev => prev.filter(n => n.id !== id)); };
 
   return (
@@ -1037,7 +1070,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       user, setUser, cart, orders, tickets, wishlist, allUsers, finance, products, notifications, isCartOpen, isAuthOpen, isDBReady,
       login, loginWithGoogle, signup, logout, resetPassword, addProduct, updateProduct, deleteProduct, addToCart, updateQuantity, removeFromCart, placeOrder, addTicket, addTicketMessage, updateTicketPriority, assignTicket, toggleWishlist,
       toggleCart: setIsCartOpen, toggleAuth: setIsAuthOpen, updateOrderStatus, updateTicketStatus, updateKYCStatus, updateUserStatus, dismissNotification,
-      addAddress, updateAddress, setDefaultAddress, removeAddress, updateRentalPreferences, savePendingCheckout, refreshProfile
+      addAddress, updateAddress, setDefaultAddress, removeAddress, updateRentalPreferences, savePendingCheckout, refreshProfile, updateProfile
     }}>
       {children}
     </StoreContext.Provider>

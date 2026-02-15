@@ -11,7 +11,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
-    const { user, orders, tickets, addTicket, logout, updateRentalPreferences, refreshProfile, removeAddress, setDefaultAddress, updateOrderStatus } = useStore();
+    const { user, orders, tickets, addTicket, logout, updateRentalPreferences, refreshProfile, removeAddress, setDefaultAddress, updateOrderStatus, updateProfile } = useStore();
     const { showToast } = useToast(); // Global Toast
     const [activeTab, setActiveTab] = useState<'rentals' | 'orders' | 'support'>(initialTab);
     const [ticketSubject, setTicketSubject] = useState("");
@@ -32,6 +32,12 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
     const [selectedRental, setSelectedRental] = useState<{ orderId: string; item: any } | null>(null);
     const [extensionMonths, setExtensionMonths] = useState(3);
     const [returnReason, setReturnReason] = useState('');
+
+    // Profile Edit State
+    const [isEditingProfile, setIsEditingProfile] = useState(false);
+    const [editedName, setEditedName] = useState(user?.name || '');
+    const [isUpdating, setIsUpdating] = useState(false);
+
 
     // Rental Management Handlers
     const handleExtendRental = () => {
@@ -179,11 +185,24 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                 {/* Main Content */}
                 <div className="flex-1 bg-brand-page p-8">
                     {/* Header */}
-                    <div className="mb-8">
-                        <p className="text-sm text-brand-muted mb-2">
-                            Hello <span className="font-semibold text-white">{user.name}</span> (not {user.name}? <button onClick={logout} className="text-brand-primary hover:underline">Log out</button>)
-                        </p>
+                    <div className="mb-8 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-full bg-brand-primary flex items-center justify-center overflow-hidden border-2 border-brand-border">
+                                {user.avatar ? (
+                                    <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <span className="material-symbols-outlined text-white text-3xl">account_circle</span>
+                                )}
+                            </div>
+                            <div>
+                                <p className="text-sm text-brand-muted">
+                                    Hello <span className="font-semibold text-white">{user.name}</span> (not {user.name}? <button onClick={logout} className="text-brand-primary hover:underline">Log out</button>)
+                                </p>
+                                <p className="text-xs text-brand-muted/60">Manage your profile and rentals</p>
+                            </div>
+                        </div>
                     </div>
+
 
                     {/* Account Details Card */}
                     {activeTab === 'rentals' && (
@@ -193,14 +212,66 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                             <div className="space-y-6">
                                 <div className="grid grid-cols-2 gap-x-12 gap-y-6">
                                     <div>
-                                        <label className="text-sm font-semibold text-brand-muted block mb-2">Name</label>
-                                        <p className="text-white">{user.name}</p>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="text-sm font-semibold text-brand-muted block">Name</label>
+                                            {!isEditingProfile && (
+                                                <button
+                                                    onClick={() => {
+                                                        setEditedName(user.name);
+                                                        setIsEditingProfile(true);
+                                                    }}
+                                                    className="text-brand-primary text-xs hover:underline flex items-center gap-1"
+                                                >
+                                                    <span className="material-symbols-outlined text-xs">edit</span>
+                                                    Edit
+                                                </button>
+                                            )}
+                                        </div>
+                                        {isEditingProfile ? (
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={editedName}
+                                                    onChange={(e) => setEditedName(e.target.value)}
+                                                    className="bg-black/40 border border-brand-border rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:border-brand-primary flex-1"
+                                                    autoFocus
+                                                />
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!editedName.trim()) return;
+                                                        setIsUpdating(true);
+                                                        try {
+                                                            await updateProfile({ name: editedName });
+                                                            setIsEditingProfile(false);
+                                                            showToast("Name updated successfully!", "success");
+                                                        } catch (err: any) {
+                                                            showToast(err.message || "Failed to update name", "error");
+                                                        } finally {
+                                                            setIsUpdating(false);
+                                                        }
+                                                    }}
+                                                    disabled={isUpdating}
+                                                    className="bg-brand-primary text-white text-xs px-3 py-1.5 rounded hover:bg-brand-primaryHover disabled:opacity-50"
+                                                >
+                                                    Save
+                                                </button>
+                                                <button
+                                                    onClick={() => setIsEditingProfile(false)}
+                                                    className="text-brand-muted text-xs px-3 py-1.5 hover:bg-white/5 rounded"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <p className="text-white">{user.name}</p>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="text-sm font-semibold text-brand-muted block mb-2">E-mail</label>
                                         <p className="text-white">{user.email}</p>
                                     </div>
                                 </div>
+
 
                                 {user.addresses && user.addresses.length > 0 && (
                                     <>
