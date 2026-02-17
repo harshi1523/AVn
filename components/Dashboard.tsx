@@ -254,33 +254,44 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
 
 
 
-                                {user.addresses && user.addresses.length > 0 && (
+                                {user.addresses && user.addresses.length > 0 ? (
                                     <>
                                         <div>
-                                            <label className="text-sm font-semibold text-brand-muted block mb-2">Address 1</label>
-                                            <p className="text-white">{user.addresses[0].address}</p>
+                                            <label className="text-sm font-semibold text-brand-muted block mb-2">Primary Address</label>
+                                            <p className="text-white">{user.addresses.find(a => a.isDefault)?.address || user.addresses[0].address}</p>
                                         </div>
-                                        {user.addresses.length > 1 && (
-                                            <div>
-                                                <label className="text-sm font-semibold text-brand-muted block mb-2">Address 2</label>
-                                                <p className="text-white">{user.addresses[1].address}</p>
-                                            </div>
-                                        )}
                                         <div className="grid grid-cols-2 gap-x-12 gap-y-6">
                                             <div>
-                                                <label className="text-sm font-semibold text-brand-muted block mb-2">Country/region</label>
-                                                <p className="text-white">{user.addresses[0].state || 'India'}</p>
+                                                <label className="text-sm font-semibold text-brand-muted block mb-2">City</label>
+                                                <p className="text-white">{user.addresses.find(a => a.isDefault)?.city || user.addresses[0].city}</p>
                                             </div>
                                             <div>
-                                                <label className="text-sm font-semibold text-brand-muted block mb-2">Postal/ZIP code</label>
-                                                <p className="text-white">{user.addresses[0].pincode}</p>
+                                                <label className="text-sm font-semibold text-brand-muted block mb-2">Postal code</label>
+                                                <p className="text-white">{user.addresses.find(a => a.isDefault)?.pincode || user.addresses[0].pincode}</p>
                                             </div>
                                         </div>
-                                        <div>
-                                            <label className="text-sm font-semibold text-brand-muted block mb-2">Phone</label>
-                                            <p className="text-white">{user.addresses[0].phone}</p>
-                                        </div>
+                                        <button
+                                            onClick={() => setActiveTab('addresses')}
+                                            className="text-brand-primary text-sm font-semibold hover:underline flex items-center gap-1 mt-2"
+                                        >
+                                            <span className="material-symbols-outlined text-sm">settings</span>
+                                            Manage all addresses ({user.addresses.length})
+                                        </button>
                                     </>
+                                ) : (
+                                    <div className="bg-white/5 border border-dashed border-brand-border rounded-xl p-6 text-center">
+                                        <span className="material-symbols-outlined text-brand-muted text-3xl mb-2 opacity-50">location_off</span>
+                                        <p className="text-brand-muted text-sm mb-4">No addresses added yet. Add one to speed up checkout.</p>
+                                        <button
+                                            onClick={() => {
+                                                setEditingAddress(undefined);
+                                                setIsAddressModalOpen(true);
+                                            }}
+                                            className="bg-brand-primary/10 text-brand-primary text-sm px-6 py-2 rounded-lg font-bold hover:bg-brand-primary/20 transition-all border border-brand-primary/30"
+                                        >
+                                            Add First Address
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -505,46 +516,96 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                     {/* Addresses Management */}
                     {activeTab === 'addresses' && (
                         <div className="space-y-6">
-                            {user.addresses && user.addresses.length > 0 ? (
-                                user.addresses.map((address, idx) => (
-                                    <div key={address.id} className="bg-brand-card border border-brand-border rounded-2xl p-8 shadow-xl">
-                                        <div className="text-center">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {user.addresses && user.addresses.length > 0 ? (
+                                    user.addresses.map((address) => (
+                                        <div
+                                            key={address.id}
+                                            className={`bg-brand-card border rounded-2xl p-6 shadow-xl transition-all relative group ${address.isDefault ? 'border-brand-primary' : 'border-brand-border'
+                                                }`}
+                                        >
                                             {address.isDefault && (
-                                                <div className="inline-block mb-4">
-                                                    <span className="text-lg font-bold text-white">Default</span>
+                                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-primary text-white text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider shadow-lg z-10">
+                                                    Default Address
                                                 </div>
                                             )}
-                                            <h3 className="text-base font-semibold text-white mb-2">{address.recipientName || user.name}</h3>
-                                            <p className="text-sm text-brand-muted mb-1">{address.address}</p>
-                                            <p className="text-sm text-brand-muted mb-1">{address.pincode} {address.city}</p>
-                                            <p className="text-sm text-brand-muted mb-6">{address.state || 'India'}</p>
 
-                                            <div className="flex items-center justify-center gap-3">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="material-symbols-outlined text-brand-primary">
+                                                        {address.label === 'Home' ? 'home' : address.label === 'Office' ? 'work' : 'family_restroom'}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-brand-primary uppercase tracking-widest">{address.label}</span>
+                                                </div>
+                                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => {
+                                                            setEditingAddress(address);
+                                                            setIsAddressModalOpen(true);
+                                                        }}
+                                                        className="p-1.5 hover:bg-white/5 rounded-lg text-brand-muted hover:text-white transition-all"
+                                                        title="Edit Address"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">edit</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setDeleteConfirmId(address.id)}
+                                                        className="p-1.5 hover:bg-red-400/10 rounded-lg text-brand-muted hover:text-red-400 transition-all"
+                                                        title="Delete Address"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">delete</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="mb-6">
+                                                <h3 className="text-base font-bold text-white mb-2">{address.recipientName || user.name}</h3>
+                                                <p className="text-sm text-brand-muted leading-relaxed line-clamp-2 mb-1">{address.address}</p>
+                                                <p className="text-sm text-brand-muted">{address.city}, {address.state || 'India'} - {address.pincode}</p>
+                                                <p className="text-xs text-brand-muted/60 mt-2 flex items-center gap-1">
+                                                    <span className="material-symbols-outlined text-xs">call</span>
+                                                    {address.phone}
+                                                </p>
+                                            </div>
+
+                                            <div className="flex flex-col gap-2">
+                                                {!address.isDefault && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            try {
+                                                                await setDefaultAddress(address.id);
+                                                                showToast('Default address updated!');
+                                                            } catch (error: any) {
+                                                                showToast(error.message || 'Failed to update default address', 'error');
+                                                            }
+                                                        }}
+                                                        className="w-full border border-brand-border text-white py-2 rounded-xl text-xs font-bold hover:bg-white/5 transition-all"
+                                                    >
+                                                        Set as Default
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => {
                                                         setEditingAddress(address);
                                                         setIsAddressModalOpen(true);
                                                     }}
-                                                    className="bg-brand-primary text-white px-8 py-2.5 rounded-lg font-semibold hover:bg-brand-primaryHover transition-all"
+                                                    className={`w-full py-2 rounded-xl text-xs font-bold transition-all ${address.isDefault
+                                                        ? 'bg-brand-primary text-white hover:bg-brand-primaryHover'
+                                                        : 'bg-white/5 text-white hover:bg-white/10'
+                                                        }`}
                                                 >
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    onClick={() => setDeleteConfirmId(address.id)}
-                                                    className="border border-brand-border text-brand-primary px-8 py-2.5 rounded-lg font-semibold hover:bg-white/5 transition-all"
-                                                >
-                                                    Delete
+                                                    Edit Details
                                                 </button>
                                             </div>
                                         </div>
+                                    ))
+                                ) : (
+                                    <div className="col-span-full bg-brand-card border border-brand-border rounded-2xl p-12 shadow-xl text-center">
+                                        <span className="material-symbols-outlined text-6xl text-brand-muted mb-4 opacity-20">location_off</span>
+                                        <p className="text-brand-muted">No addresses added yet</p>
                                     </div>
-                                ))
-                            ) : (
-                                <div className="bg-brand-card border border-brand-border rounded-2xl p-12 shadow-xl text-center">
-                                    <span className="material-symbols-outlined text-6xl text-brand-muted mb-4 opacity-20">location_off</span>
-                                    <p className="text-brand-muted mb-6">No addresses added yet</p>
-                                </div>
-                            )}
+                                )}
+                            </div>
 
                             <div className="flex justify-center">
                                 <button

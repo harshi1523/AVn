@@ -53,7 +53,7 @@ export default function AddressModal({ onClose, editAddress, onSuccess }: Addres
           <div>
             <label className="text-gray-400 text-xs font-bold uppercase tracking-widest block mb-2">Label</label>
             <div className="flex gap-2">
-              {['Home', 'Office', 'Other'].map(l => (
+              {['Home', 'Office', 'Parents'].map(l => (
                 <button
                   key={l}
                   type="button"
