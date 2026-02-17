@@ -224,19 +224,39 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
             <div className="space-y-4">
                 {addresses.map(addr => (
                     <div key={addr.id} onClick={() => setSelectedAddress(addr.id)}
-                        className={`p-4 border rounded cursor-pointer flex items-start gap-3 ${selectedAddress === addr.id ? 'bg-blue-50 border-blue-600' : 'border-gray-200 hover:bg-gray-50'}`}>
-                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center mt-1 ${selectedAddress === addr.id ? 'border-blue-600' : 'border-gray-400'}`}>
-                            {selectedAddress === addr.id && <div className="w-2 h-2 rounded-full bg-blue-600"></div>}
+                        className={`p-4 border rounded-xl cursor-pointer flex items-start gap-4 transition-all ${selectedAddress === addr.id
+                                ? 'bg-brand-primary/5 border-brand-primary shadow-md'
+                                : 'border-gray-200 hover:border-brand-primary/30 hover:bg-gray-50'
+                            }`}>
+                        <div className={`mt-1 flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedAddress === addr.id ? 'border-brand-primary' : 'border-gray-300'
+                            }`}>
+                            {selectedAddress === addr.id && <div className="w-2.5 h-2.5 rounded-full bg-brand-primary"></div>}
                         </div>
-                        <div>
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="font-bold text-gray-900">{addr.label || user?.name}</span>
+                        <div className="flex-1">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-brand-primary text-lg">
+                                        {addr.label === 'Home' ? 'home' : addr.label === 'Office' ? 'work' : 'family_restroom'}
+                                    </span>
+                                    <span className="font-bold text-gray-900">{addr.recipientName || user?.name}</span>
+                                    <span className="bg-brand-primary/10 text-brand-primary text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                                        {addr.label}
+                                    </span>
+                                </div>
                                 <span className="text-sm text-gray-500 font-bold">{addr.phone}</span>
                             </div>
-                            <p className="text-sm text-gray-600">{addr.address}, {addr.city} - {addr.pincode}</p>
+                            <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                                {addr.address}, {addr.city} {addr.state && `- ${addr.state}`} - {addr.pincode}
+                            </p>
                             {selectedAddress === addr.id && (
-                                <button onClick={handleContinue} className="mt-4 bg-orange-500 text-white px-6 py-3 rounded text-sm font-bold uppercase hover:bg-orange-600 transition-colors">
-                                    Deliver Here
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleContinue();
+                                    }}
+                                    className="bg-brand-primary text-white px-8 py-2.5 rounded-lg text-sm font-bold uppercase hover:bg-brand-primaryHover transition-all shadow-glow"
+                                >
+                                    Deliver to this address
                                 </button>
                             )}
                         </div>
@@ -252,21 +272,30 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
             <div className="flex-1 space-y-4">
 
                 {/* Deliver To Block */}
-                <div className="bg-white p-4 rounded shadow-sm border border-gray-100 flex justify-between items-center">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="text-gray-500 text-sm">Deliver to:</span>
-                            <span className="font-bold text-gray-900 text-sm">
-                                {addresses.find(a => a.id === selectedAddress)?.label || user?.name}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                    <div className="flex gap-4">
+                        <div className="w-12 h-12 bg-brand-primary/5 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <span className="material-symbols-outlined text-brand-primary text-2xl">
+                                {addresses.find(a => a.id === selectedAddress)?.label === 'Home' ? 'home' :
+                                    addresses.find(a => a.id === selectedAddress)?.label === 'Office' ? 'work' : 'family_restroom'}
                             </span>
-                            <span className="bg-gray-100 text-xs px-1 rounded text-gray-500">HOME</span>
                         </div>
-                        <p className="text-sm text-gray-600 truncate max-w-md">
-                            {addresses.find(a => a.id === selectedAddress)?.address}, {addresses.find(a => a.id === selectedAddress)?.city} {addresses.find(a => a.id === selectedAddress)?.pincode}
-                        </p>
-                        <p className="text-sm text-gray-600 mt-1">{addresses.find(a => a.id === selectedAddress)?.phone}</p>
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Deliver to</span>
+                                <span className="bg-brand-primary/10 text-brand-primary text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                                    {addresses.find(a => a.id === selectedAddress)?.label || 'HOME'}
+                                </span>
+                            </div>
+                            <h4 className="font-bold text-gray-900">
+                                {addresses.find(a => a.id === selectedAddress)?.recipientName || user?.name} • {addresses.find(a => a.id === selectedAddress)?.phone}
+                            </h4>
+                            <p className="text-sm text-gray-600 truncate max-w-md">
+                                {addresses.find(a => a.id === selectedAddress)?.address}, {addresses.find(a => a.id === selectedAddress)?.city} {addresses.find(a => a.id === selectedAddress)?.pincode}
+                            </p>
+                        </div>
                     </div>
-                    <button onClick={() => setActiveStep('address')} className="text-blue-600 border border-gray-200 px-4 py-2 rounded text-xs font-bold hover:bg-blue-50">
+                    <button onClick={() => setActiveStep('address')} className="text-brand-primary border border-brand-primary/20 px-4 py-2 rounded-lg text-xs font-bold hover:bg-brand-primary/5 transition-all">
                         Change
                     </button>
                 </div>
