@@ -8,13 +8,13 @@ import EditProfileModal from "./EditProfileModal";
 import { Address } from "../lib/types";
 
 interface DashboardProps {
-    initialTab?: 'rentals' | 'orders' | 'support';
+    initialTab?: 'rentals' | 'orders' | 'support' | 'rental-preferences' | 'addresses' | 'my-rentals';
 }
 
 export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
     const { user, orders, tickets, addTicket, logout, updateRentalPreferences, refreshProfile, removeAddress, setDefaultAddress, updateOrderStatus, updateProfile } = useStore();
     const { showToast } = useToast(); // Global Toast
-    const [activeTab, setActiveTab] = useState<'rentals' | 'orders' | 'support'>(initialTab);
+    const [activeTab, setActiveTab] = useState<'rentals' | 'orders' | 'support' | 'rental-preferences' | 'addresses' | 'my-rentals'>(initialTab);
     const [ticketSubject, setTicketSubject] = useState("");
     const [ticketDescription, setTicketDescription] = useState("");
 
@@ -169,6 +169,18 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                                     {tab.label}
                                 </button>
                             ))}
+
+                            {/* Rental Preferences Menu Item */}
+                            <button
+                                onClick={() => setActiveTab('rental-preferences')}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeTab === 'rental-preferences'
+                                    ? 'bg-brand-primary text-white'
+                                    : 'text-brand-muted hover:bg-white/5 hover:text-white'
+                                    }`}
+                            >
+                                <span className="material-symbols-outlined text-xl">payments</span>
+                                Rental Preferences
+                            </button>
                         </div>
                     </nav>
 
@@ -617,6 +629,82 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                                 >
                                     Add a new address
                                 </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Rental Preferences Management */}
+                    {activeTab === 'rental-preferences' && (
+                        <div className="bg-brand-card border border-brand-border rounded-2xl p-8 shadow-xl">
+                            <div className="flex justify-between items-center mb-8">
+                                <h2 className="text-2xl font-bold text-white">Rental Payment Preferences</h2>
+                                <button
+                                    onClick={() => setIsPaymentModalOpen(true)}
+                                    className="bg-brand-primary text-white text-sm px-4 py-2 rounded-lg font-semibold hover:bg-brand-primaryHover transition-all shadow-glow flex items-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-sm">edit</span>
+                                    Update Preferences
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="bg-white/5 border border-brand-border rounded-xl p-6">
+                                    <div className="flex items-center gap-4 mb-4">
+                                        <div className="w-12 h-12 rounded-full bg-brand-primary/20 text-brand-primary flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-2xl">
+                                                {user.rentalPreferences?.depositMethod === 'card' ? 'credit_card' :
+                                                    user.rentalPreferences?.depositMethod === 'upi' ? 'qr_code' : 'account_balance'}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-brand-muted font-bold uppercase tracking-wider">Preferred Method</p>
+                                            <p className="text-lg font-bold text-white capitalize">
+                                                {user.rentalPreferences?.depositMethod?.replace('_', ' ') || 'Not Configured'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4 pt-4 border-t border-brand-border/50">
+                                        {user.rentalPreferences?.depositMethod === 'upi' && (
+                                            <div>
+                                                <label className="text-xs font-semibold text-brand-muted block mb-1">UPI ID</label>
+                                                <p className="text-white font-mono">{user.rentalPreferences.upiId || 'Not provided'}</p>
+                                            </div>
+                                        )}
+                                        {user.rentalPreferences?.depositMethod === 'card' && (
+                                            <div>
+                                                <label className="text-xs font-semibold text-brand-muted block mb-1">Saved Card</label>
+                                                <p className="text-white font-mono flex items-center gap-2">
+                                                    <span className="material-symbols-outlined text-sm">credit_card</span>
+                                                    •••• •••• •••• {user.rentalPreferences.cardLast4 || '****'}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {!user.rentalPreferences?.depositMethod && (
+                                            <p className="text-sm text-brand-muted italic">Configure your payment method for a faster rental experience.</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="bg-brand-primary/5 border border-brand-primary/20 rounded-xl p-6">
+                                    <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-brand-primary text-lg">info</span>
+                                        Why configure this?
+                                    </h4>
+                                    <ul className="space-y-3">
+                                        {[
+                                            'Faster checkout for future rentals',
+                                            'Seamless security deposit refunds',
+                                            'Automated monthly rental payments',
+                                            'Securely stored preferences'
+                                        ].map((text, i) => (
+                                            <li key={i} className="flex items-start gap-2 text-xs text-brand-muted">
+                                                <span className="material-symbols-outlined text-brand-primary text-[14px] mt-0.5">check_circle</span>
+                                                {text}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
                             </div>
                         </div>
                     )}

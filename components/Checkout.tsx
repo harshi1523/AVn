@@ -10,7 +10,7 @@ interface CheckoutProps {
 type CheckoutStep = 'address' | 'summary' | 'payment';
 
 export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
-    const { cart, removeFromCart, placeOrder, user, addAddress, removeAddress, savePendingCheckout } = useStore();
+    const { cart, removeFromCart, updateQuantity, placeOrder, user, addAddress, removeAddress, savePendingCheckout } = useStore();
 
     // Steps State
     const [activeStep, setActiveStep] = useState<CheckoutStep>('address');
@@ -225,8 +225,8 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                 {addresses.map(addr => (
                     <div key={addr.id} onClick={() => setSelectedAddress(addr.id)}
                         className={`p-4 border rounded-xl cursor-pointer flex items-start gap-4 transition-all ${selectedAddress === addr.id
-                                ? 'bg-brand-primary/5 border-brand-primary shadow-md'
-                                : 'border-gray-200 hover:border-brand-primary/30 hover:bg-gray-50'
+                            ? 'bg-brand-primary/5 border-brand-primary shadow-md'
+                            : 'border-gray-200 hover:border-brand-primary/30 hover:bg-gray-50'
                             }`}>
                         <div className={`mt-1 flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedAddress === addr.id ? 'border-brand-primary' : 'border-gray-300'
                             }`}>
@@ -338,16 +338,16 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                                     <div className="flex items-center gap-2">
                                         <button
                                             disabled={item.quantity <= 1}
-                                            onClick={() => { }} // Impl update qty
+                                            onClick={() => updateQuantity(item.id, -1)}
                                             className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 disabled:opacity-50"
                                         >
                                             -
                                         </button>
-                                        <div className="border border-gray-300 px-4 py-1 text-sm font-bold bg-white">
+                                        <div className="border border-gray-300 px-4 py-1 text-sm font-bold bg-white text-gray-900">
                                             Q: {item.quantity}
                                         </div>
                                         <button
-                                            onClick={() => { }} // Impl update qty
+                                            onClick={() => updateQuantity(item.id, 1)}
                                             className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-600"
                                         >
                                             +

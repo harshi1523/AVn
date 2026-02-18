@@ -20,13 +20,14 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
     const [localSearch, setLocalSearch] = useState("");
     const [selectedType, setSelectedType] = useState<'rent' | 'buy' | 'all'>(type || 'all');
     const [selectedCondition, setSelectedCondition] = useState<'New' | 'Refurbished' | 'All'>(refurbishedOnly ? 'Refurbished' : 'All');
+    const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
     const [sortBy, setSortBy] = useState<'popularity' | 'price-low' | 'price-high' | 'newest'>('popularity');
 
     useEffect(() => {
         setIsLoading(true);
         const timer = setTimeout(() => setIsLoading(false), 800);
         return () => clearTimeout(timer);
-    }, [category, type, searchQuery, favoritesOnly, refurbishedOnly, selectedType, selectedCondition, sortBy]);
+    }, [category, type, searchQuery, favoritesOnly, refurbishedOnly, selectedType, selectedCondition, selectedBrands, sortBy]);
 
     useEffect(() => {
         if (type) setSelectedType(type);
@@ -51,6 +52,9 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
             if (selectedType !== 'all') {
                 results = results.filter(p => p.type === selectedType);
             }
+            if (selectedBrands.length > 0) {
+                results = results.filter(p => selectedBrands.includes(p.brand));
+            }
             const activeCondition = refurbishedOnly ? 'Refurbished' : (selectedCondition !== 'All' ? selectedCondition : null);
             if (activeCondition) results = results.filter(p => p.condition === activeCondition);
         }
@@ -72,7 +76,12 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
         }
 
         return results;
-    }, [category, type, searchQuery, favoritesOnly, refurbishedOnly, selectedType, selectedCondition, localSearch, wishlist, sortBy, products]);
+    }, [category, type, searchQuery, favoritesOnly, refurbishedOnly, selectedType, selectedCondition, selectedBrands, localSearch, wishlist, sortBy, products]);
+
+    const availableBrands = useMemo(() => {
+        const brands = Array.from(new Set(products.map(p => p.brand))).filter(Boolean);
+        return brands.sort();
+    }, [products]);
 
     const categories = [
         { label: 'All Products', value: 'All', icon: 'grid_view' },
@@ -107,6 +116,42 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                                             }`}>{cat.icon}</span>
                                         {cat.label}
                                     </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Brand Section */}
+                        <div>
+                            <div className="flex items-center justify-between mb-7">
+                                <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">Brands</h3>
+                                {selectedBrands.length > 0 && (
+                                    <button
+                                        onClick={() => setSelectedBrands([])}
+                                        className="text-[10px] font-black text-brand-primary uppercase tracking-widest hover:text-white transition-colors"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex flex-col gap-4">
+                                {availableBrands.map(brand => (
+                                    <label key={brand} className="flex items-center gap-3 cursor-pointer group">
+                                        <div className="relative flex items-center justify-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedBrands.includes(brand)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setSelectedBrands(prev => [...prev, brand]);
+                                                    else setSelectedBrands(prev => prev.filter(b => b !== brand));
+                                                }}
+                                                className="peer appearance-none w-5 h-5 border border-white/10 rounded-md bg-white/5 checked:bg-brand-primary checked:border-brand-primary transition-all duration-300"
+                                            />
+                                            <span className="material-symbols-outlined absolute text-[14px] text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none">check</span>
+                                        </div>
+                                        <span className={`text-[11px] font-black uppercase tracking-widest transition-colors ${selectedBrands.includes(brand) ? 'text-white' : 'text-white/40 group-hover:text-white'}`}>
+                                            {brand}
+                                        </span>
+                                    </label>
                                 ))}
                             </div>
                         </div>
