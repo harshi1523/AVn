@@ -36,6 +36,7 @@ interface StoreContextType {
   logout: () => Promise<void>;
   addToCart: (productId: string, type: 'rent' | 'buy', tenure?: number, variants?: CartItem['variants'], warranty?: CartItem['warranty']) => void;
   updateQuantity: (cartItemId: string, delta: number) => void;
+  updateTenure: (cartItemId: string, newTenure: number) => Promise<void>;
   removeFromCart: (cartItemId: string) => void;
   placeOrder: (address: string, paymentMethod: string, totalOverride?: number, rentalDetails?: { start?: string, end?: string, deposit?: number, method?: 'pickup' | 'delivery' }) => Promise<void>;
   addTicket: (subject: string, description: string) => Promise<void>;
@@ -502,6 +503,28 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       return item;
     });
     setCart(updatedCart); // Update local state
+    await syncUserField('cart', updatedCart);
+  };
+
+  const updateTenure = async (cartItemId: string, newTenure: number) => {
+    const updatedCart = cart.map(item => {
+      if (item.id === cartItemId) {
+        const product = products.find(p => p.id === item.productId);
+        if (product && product.rentalOptions) {
+          const option = product.rentalOptions.find(o => o.months === newTenure);
+          if (option) {
+            return {
+              ...item,
+              tenure: newTenure,
+              price: option.price + (item.warranty?.price || 0)
+            };
+          }
+        }
+        return { ...item, tenure: newTenure };
+      }
+      return item;
+    });
+    setCart(updatedCart);
     await syncUserField('cart', updatedCart);
   };
 

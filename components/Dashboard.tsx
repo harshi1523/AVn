@@ -40,6 +40,10 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
     // Profile Edit State
     const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
 
+    // Order Detail Modal State
+    const [isOrderDetailModalOpen, setIsOrderDetailModalOpen] = useState(false);
+    const [selectedOrderForDetail, setSelectedOrderForDetail] = useState<any>(null);
+
 
     // Rental Management Handlers
     const handleExtendRental = () => {
@@ -226,6 +230,78 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                         </div>
                     </div>
 
+
+                    {/* KYC Status Card */}
+                    {activeTab === 'rentals' && (
+                        <div className={`mb-6 p-6 rounded-2xl border transition-all shadow-lg overflow-hidden relative ${user?.kycStatus === 'approved'
+                            ? 'bg-green-500/10 border-green-500/30'
+                            : user?.kycStatus === 'pending'
+                                ? 'bg-yellow-500/10 border-yellow-500/30'
+                                : user?.kycStatus === 'rejected'
+                                    ? 'bg-red-500/10 border-red-500/30'
+                                    : 'bg-brand-primary/10 border-brand-primary/20'
+                            }`}>
+                            {/* Decorative Background Icon */}
+                            <div className="absolute right-[-20px] top-[-20px] opacity-[0.05] pointer-events-none">
+                                <span className="material-symbols-outlined text-[120px]">
+                                    {user?.kycStatus === 'approved' ? 'verified_user' : 'badge'}
+                                </span>
+                            </div>
+
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                                <div className="flex items-start gap-4">
+                                    <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 ${user?.kycStatus === 'approved'
+                                        ? 'bg-green-500 text-white'
+                                        : user?.kycStatus === 'pending'
+                                            ? 'bg-yellow-500 text-black'
+                                            : user?.kycStatus === 'rejected'
+                                                ? 'bg-red-500 text-white'
+                                                : 'bg-brand-primary text-white shadow-glow'
+                                        }`}>
+                                        <span className="material-symbols-outlined text-2xl">
+                                            {user?.kycStatus === 'approved' ? 'verified' :
+                                                user?.kycStatus === 'pending' ? 'hourglass_top' :
+                                                    user?.kycStatus === 'rejected' ? 'gpp_bad' : 'person_search'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <h3 className="text-xl font-bold text-white tracking-tight">Identity Verification</h3>
+                                            <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest ${user?.kycStatus === 'approved'
+                                                ? 'bg-green-500 text-white'
+                                                : user?.kycStatus === 'pending'
+                                                    ? 'bg-yellow-500 text-black'
+                                                    : user?.kycStatus === 'rejected'
+                                                        ? 'bg-red-500 text-white'
+                                                        : 'bg-white/10 text-white/60'
+                                                }`}>
+                                                {user?.kycStatus ? user.kycStatus.replace('_', ' ') : 'NOT SUBMITTED'}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-brand-muted leading-relaxed max-w-md">
+                                            {user?.kycStatus === 'approved'
+                                                ? 'Your identity is verified. You have full access to all rental features.'
+                                                : user?.kycStatus === 'pending'
+                                                    ? 'Your documents are under review. This usually takes less than 24 hours.'
+                                                    : user?.kycStatus === 'rejected'
+                                                        ? 'Verification failed. Please review the reason and try again.'
+                                                        : 'Complete your KYC to unlock rentals. It only takes 2 minutes and a valid ID.'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {(!user?.kycStatus || user.kycStatus === 'not_submitted' || user.kycStatus === 'rejected') && (
+                                    <button
+                                        onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } }))}
+                                        className="bg-white text-black hover:bg-brand-primary hover:text-white px-8 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2 group"
+                                    >
+                                        Verify Identity
+                                        <span className="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Account Details Card */}
                     {activeTab === 'rentals' && (
@@ -513,9 +589,19 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                                                     onClick={async () => {
                                                         await generateInvoice(order, user);
                                                     }}
-                                                    className="text-sm font-semibold text-brand-primary hover:underline"
+                                                    className="text-sm font-semibold text-brand-muted hover:text-white"
                                                 >
-                                                    Download Invoice
+                                                    Invoice
+                                                </button>
+
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedOrderForDetail(order);
+                                                        setIsOrderDetailModalOpen(true);
+                                                    }}
+                                                    className="bg-brand-primary/10 text-brand-primary px-4 py-2 rounded-lg text-sm font-semibold hover:bg-brand-primary hover:text-white transition-all"
+                                                >
+                                                    View Details
                                                 </button>
                                             </div>
                                         </div>
@@ -1230,6 +1316,183 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                             >
                                 Close
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Order Details Modal (History) */}
+            {isOrderDetailModalOpen && selectedOrderForDetail && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                    <div className="bg-brand-card border border-brand-border rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in duration-200">
+                        {/* Modal Header */}
+                        <div className="p-6 border-b border-brand-border flex items-center justify-between bg-white/5">
+                            <div>
+                                <h3 className="text-xl font-bold text-white">Order Details</h3>
+                                <p className="text-sm text-brand-muted">ORD_{selectedOrderForDetail.id} • {selectedOrderForDetail.date}</p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setIsOrderDetailModalOpen(false);
+                                    setSelectedOrderForDetail(null);
+                                }}
+                                className="w-10 h-10 rounded-full flex items-center justify-center text-brand-muted hover:bg-white/10 hover:text-white transition-all"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+                            {/* Status Timeline */}
+                            <div className="relative">
+                                <div className="flex justify-between items-center mb-4">
+                                    {['Placed', 'Processing', 'Shipped', 'Delivered'].map((step, idx) => {
+                                        const statuses = ['Placed', 'Processing', 'Shipped', 'Delivered'];
+                                        const currentIdx = statuses.indexOf(selectedOrderForDetail.status);
+                                        const isCompleted = idx <= currentIdx;
+                                        const isCurrent = idx === currentIdx;
+
+                                        return (
+                                            <div key={step} className="flex flex-col items-center relative z-10">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-500 ${isCompleted ? 'bg-brand-primary text-white shadow-glow' : 'bg-white/10 text-brand-muted border border-brand-border'
+                                                    }`}>
+                                                    {isCompleted ? <span className="material-symbols-outlined text-sm">check</span> : idx + 1}
+                                                </div>
+                                                <span className={`text-[10px] font-bold uppercase tracking-wider mt-2 ${isCurrent ? 'text-brand-primary' : isCompleted ? 'text-white' : 'text-brand-muted'
+                                                    }`}>{step}</span>
+                                            </div>
+                                        );
+                                    })}
+                                    {/* Timeline Line */}
+                                    <div className="absolute top-4 left-0 right-0 h-[2px] bg-white/10 -z-0">
+                                        <div
+                                            className="h-full bg-brand-primary transition-all duration-1000 ease-out"
+                                            style={{
+                                                width: `${Math.max(0, (['Placed', 'Processing', 'Shipped', 'Delivered'].indexOf(selectedOrderForDetail.status) / 3) * 100)}%`
+                                            }}
+                                        ></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Shipping Info */}
+                                <div className="space-y-4">
+                                    <div className="bg-white/5 border border-brand-border rounded-xl p-5">
+                                        <h4 className="text-xs font-black uppercase tracking-widest text-brand-primary mb-3">Shipping Details</h4>
+                                        <div className="flex items-start gap-3">
+                                            <span className="material-symbols-outlined text-brand-muted text-lg">location_on</span>
+                                            <div>
+                                                <p className="text-sm font-bold text-white mb-1">{user.name}</p>
+                                                <p className="text-sm text-brand-muted leading-relaxed">
+                                                    {selectedOrderForDetail.address}
+                                                </p>
+                                                <p className="text-xs text-brand-muted mt-2">Method: <span className="text-white font-medium capitalize">{selectedOrderForDetail.deliveryMethod || 'Delivery'}</span></p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Payment Info */}
+                                    <div className="bg-white/5 border border-brand-border rounded-xl p-5">
+                                        <h4 className="text-xs font-black uppercase tracking-widest text-brand-primary mb-3">Payment Info</h4>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-sm text-brand-muted">Method</span>
+                                            <span className="text-sm font-bold text-white capitalize">{selectedOrderForDetail.paymentMethod || 'Card'}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-sm text-brand-muted">Status</span>
+                                            <span className="text-sm font-bold text-green-400">Paid</span>
+                                        </div>
+                                        {selectedOrderForDetail.transactionId && (
+                                            <div className="flex items-center justify-between pt-2 border-t border-brand-border/50">
+                                                <span className="text-sm text-brand-muted">Transaction ID</span>
+                                                <span className="text-[10px] font-mono text-brand-muted">{selectedOrderForDetail.transactionId}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Items List */}
+                                <div className="space-y-4">
+                                    <h4 className="text-xs font-black uppercase tracking-widest text-brand-primary px-1">Order Items</h4>
+                                    <div className="space-y-3">
+                                        {selectedOrderForDetail.items.map((item: any, idx: number) => (
+                                            <div key={idx} className="flex items-center gap-4 bg-white/5 p-3 rounded-xl border border-brand-border/30">
+                                                <div className="w-14 h-14 bg-black/40 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                    <img src={item.image} className="w-full h-full object-contain p-1.5" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-bold text-white truncate">{item.name}</p>
+                                                    <p className="text-xs text-brand-muted">{item.type === 'rent' ? `Rental • ${item.tenure}M` : 'Purchase'}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm font-black text-white">₹{item.price.toLocaleString()}</p>
+                                                    <p className="text-[10px] text-brand-muted">Qty: {item.quantity || 1}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Cost Breakdown */}
+                            <div className="bg-brand-primary/10 border border-brand-primary/20 rounded-2xl p-6">
+                                <h4 className="text-xs font-black uppercase tracking-widest text-brand-primary mb-4">Cost Breakdown</h4>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-brand-muted">Items Subtotal</span>
+                                        <span className="text-white">₹{(selectedOrderForDetail.items.reduce((acc: number, item: any) => acc + (item.price * (item.quantity || 1)), 0)).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-brand-muted">Shipping & Handling</span>
+                                        <span className="text-green-400 font-bold">FREE</span>
+                                    </div>
+                                    {selectedOrderForDetail.items.some((i: any) => i.type === 'rent') && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-brand-muted">Security Deposit (Refundable)</span>
+                                            <span className="text-white">₹{selectedOrderForDetail.depositAmount?.toLocaleString() || (selectedOrderForDetail.items.filter((i: any) => i.type === 'rent').length * 200).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-brand-muted">GST (Included)</span>
+                                        <span className="text-white">₹{(selectedOrderForDetail.total * 0.18).toLocaleString()}</span>
+                                    </div>
+                                    <div className="pt-4 mt-2 border-t border-brand-primary/30 flex justify-between items-center">
+                                        <span className="text-lg font-bold text-white">Total Amount</span>
+                                        <span className="text-2xl font-black text-brand-primary">₹{selectedOrderForDetail.total.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-6 border-t border-brand-border bg-white/5 flex gap-4">
+                            <button
+                                onClick={async () => await generateInvoice(selectedOrderForDetail, user)}
+                                className="flex-1 border border-brand-border text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                            >
+                                <span className="material-symbols-outlined text-lg">download</span>
+                                Download Invoice
+                            </button>
+                            {['Placed', 'Processing', 'Shipped'].includes(selectedOrderForDetail.status) && (
+                                <button
+                                    onClick={async () => {
+                                        if (confirm('Are you sure you want to cancel this order?')) {
+                                            try {
+                                                await updateOrderStatus(selectedOrderForDetail.id, 'Cancelled');
+                                                showToast('Order cancelled successfully', 'success');
+                                                setIsOrderDetailModalOpen(false);
+                                            } catch (error: any) {
+                                                showToast(error.message || 'Failed to cancel order', 'error');
+                                            }
+                                        }
+                                    }}
+                                    className="flex-1 bg-red-400/10 text-red-400 px-6 py-3 rounded-xl font-bold text-sm hover:bg-red-400 hover:text-white transition-all"
+                                >
+                                    Cancel Order
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

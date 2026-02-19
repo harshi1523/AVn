@@ -23,7 +23,7 @@ export default function CartPage({ onNavigate }: CartPageProps) {
         <p className="text-gray-500 mb-12 text-center max-w-md font-medium leading-relaxed">
           Your shopping cart is currently empty. Explore our premium tech collection to add some high-performance nodes to your setup.
         </p>
-        <button 
+        <button
           onClick={() => onNavigate('listing')}
           className="bg-cta-gradient text-white font-black px-12 py-5 rounded-2xl text-[10px] uppercase tracking-[0.4em] hover:brightness-110 transition-all active:scale-95 shadow-glow"
         >
@@ -36,7 +36,7 @@ export default function CartPage({ onNavigate }: CartPageProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-12 animate-in slide-in-from-bottom-6 duration-700">
       <div className="flex flex-col lg:flex-row gap-16">
-        
+
         {/* Left Section: Itemized Cart */}
         <div className="flex-1">
           <div className="flex items-center justify-between mb-12 border-b border-white/10 pb-8">
@@ -52,8 +52,8 @@ export default function CartPage({ onNavigate }: CartPageProps) {
 
           <div className="space-y-6">
             {cart.map((item) => (
-              <div 
-                key={item.id} 
+              <div
+                key={item.id}
                 className="group relative bg-brand-card border border-white/5 rounded-[2.5rem] p-8 flex flex-col md:flex-row gap-8 hover:border-white/20 transition-all duration-500 shadow-xl"
               >
                 <div className="w-full md:w-40 aspect-square bg-black/60 rounded-[1.5rem] p-6 flex items-center justify-center border border-white/5 group-hover:bg-black/80 transition-colors shrink-0">
@@ -64,11 +64,27 @@ export default function CartPage({ onNavigate }: CartPageProps) {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="text-xl font-bold text-white tracking-tight mb-2 uppercase italic font-display">{item.name}</h3>
-                      <p className="text-[10px] text-brand-primary font-black uppercase tracking-widest bg-brand-primary/10 w-fit px-2 py-0.5 rounded border border-brand-primary/20">
-                        {item.type === 'rent' ? `Rental Plan • ${item.tenure}m` : 'Outright Purchase'}
-                      </p>
+                      <div className="flex items-center gap-3">
+                        <p className="text-[10px] text-brand-primary font-black uppercase tracking-widest bg-brand-primary/10 w-fit px-2 py-0.5 rounded border border-brand-primary/20">
+                          {item.type === 'rent' ? 'Rental Plan' : 'Outright Purchase'}
+                        </p>
+                        {item.type === 'rent' && (
+                          <div className="relative group/tenure">
+                            <select
+                              value={item.tenure}
+                              onChange={(e) => useStore.getState().updateTenure(item.id, parseInt(e.target.value))}
+                              className="appearance-none bg-white/5 border border-white/10 rounded-lg px-3 py-0.5 pr-8 text-[10px] font-black text-white uppercase tracking-widest hover:border-brand-primary/40 transition-all cursor-pointer focus:outline-none"
+                            >
+                              {[3, 6, 12, 18, 24].map(m => (
+                                <option key={m} value={m} className="bg-brand-card">{m} Months</option>
+                              ))}
+                            </select>
+                            <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-[12px] text-white/40 pointer-events-none transition-transform group-hover/tenure:text-brand-primary">expand_more</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <button 
+                    <button
                       onClick={() => removeFromCart(item.id)}
                       className="text-gray-600 hover:text-red-500 transition-colors p-2"
                       title="Remove Item"
@@ -91,14 +107,14 @@ export default function CartPage({ onNavigate }: CartPageProps) {
 
                   <div className="mt-auto pt-6 border-t border-white/5 flex flex-wrap items-center justify-between gap-6">
                     <div className="flex items-center bg-black/40 border border-white/10 rounded-2xl p-1">
-                      <button 
+                      <button
                         onClick={() => updateQuantity(item.id, -1)}
                         className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-white transition-colors"
                       >
                         <span className="material-symbols-outlined text-sm">remove</span>
                       </button>
                       <span className="w-10 text-center font-black text-xs text-white">{item.quantity}</span>
-                      <button 
+                      <button
                         onClick={() => updateQuantity(item.id, 1)}
                         className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-white transition-colors"
                       >
@@ -107,12 +123,12 @@ export default function CartPage({ onNavigate }: CartPageProps) {
                     </div>
 
                     <div className="text-right">
-                       <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest mb-1">
+                      <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest mb-1">
                         {item.type === 'rent' ? 'Monthly Commitment' : 'Line Total'}
-                       </p>
-                       <p className="text-2xl font-display font-bold text-white tracking-tighter italic">
+                      </p>
+                      <p className="text-2xl font-display font-bold text-white tracking-tighter italic">
                         ₹{(item.price * item.quantity).toLocaleString()}
-                       </p>
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -120,7 +136,7 @@ export default function CartPage({ onNavigate }: CartPageProps) {
             ))}
           </div>
 
-          <button 
+          <button
             onClick={() => onNavigate('listing')}
             className="mt-12 group flex items-center gap-3 text-gray-500 hover:text-white transition-all font-black text-[10px] uppercase tracking-[0.4em]"
           >
@@ -161,7 +177,7 @@ export default function CartPage({ onNavigate }: CartPageProps) {
                   <span className="text-5xl font-display font-bold text-white tracking-tighter italic">₹{Math.round(total).toLocaleString()}</span>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => onNavigate('checkout')}
                 className="w-full bg-cta-gradient hover:brightness-110 text-white font-black py-6 rounded-2xl text-[10px] uppercase tracking-[0.4em] transition-all active:scale-95 shadow-glow flex items-center justify-center gap-3"
               >

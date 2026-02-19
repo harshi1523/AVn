@@ -20,6 +20,7 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
     const [paymentMethod, setPaymentMethod] = useState<'card' | 'net' | 'upi'>('card');
     const [upiId, setUpiId] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [addressError, setAddressError] = useState<string | null>(null);
 
     // Address Form State
     const [showAddressForm, setShowAddressForm] = useState(false);
@@ -81,9 +82,10 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
     const handleContinue = async () => {
         if (activeStep === 'address') {
             if (!selectedAddress && deliveryMethod === 'delivery') {
-                alert("Please select an address");
+                setAddressError("Please select a delivery address to proceed.");
                 return;
             }
+            setAddressError(null);
             setActiveStep('summary');
             return;
         }
@@ -222,8 +224,17 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
             )}
 
             <div className="space-y-4">
+                {addressError && (
+                    <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <span className="material-symbols-outlined text-lg">error</span>
+                        {addressError}
+                    </div>
+                )}
                 {addresses.map(addr => (
-                    <div key={addr.id} onClick={() => setSelectedAddress(addr.id)}
+                    <div key={addr.id} onClick={() => {
+                        setSelectedAddress(addr.id);
+                        setAddressError(null);
+                    }}
                         className={`p-4 border rounded-xl cursor-pointer flex items-start gap-4 transition-all ${selectedAddress === addr.id
                             ? 'bg-brand-primary/5 border-brand-primary shadow-md'
                             : 'border-gray-200 hover:border-brand-primary/30 hover:bg-gray-50'
