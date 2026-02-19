@@ -23,6 +23,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
 
   // Agreement State
   const [agreementPdfUrl, setAgreementPdfUrl] = useState<string | null>(null);
+  const [agreementBlob, setAgreementBlob] = useState<Blob | null>(null);
   const [isAgreementViewed, setIsAgreementViewed] = useState(false);
   const [isAgreementAccepted, setIsAgreementAccepted] = useState(false);
   const [showAgreementModal, setShowAgreementModal] = useState(false);
@@ -79,14 +80,29 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
 
       // Generate Agreement PDF in background
       if (user) {
-        // We need cart here. Ideally pass it as prop or fetch from store
-        // For now using useStore hook at top level
-        const { cart } = useStore.getState();
+        console.log("Found user, starting agreement generation...");
+        // Use cart from the hook
         import('../lib/rentalAgreement').then(async ({ generateRentalAgreement }) => {
-          const blob = await generateRentalAgreement(user, cart);
-          const url = URL.createObjectURL(blob);
-          setAgreementPdfUrl(url);
+          console.log("imported generator");
+          try {
+            // Ensure cart has items or handle empty cart gracefully in generator
+            console.log("Generating with cart:", cart);
+            const blob = await generateRentalAgreement(user, cart);
+            console.log("Generated blob:", blob);
+            const url = URL.createObjectURL(blob);
+            setAgreementPdfUrl(url);
+            setAgreementBlob(blob);
+          } catch (err) {
+            console.error("Failed to generate agreement:", err);
+            // Fallback or alert? For now just log, maybe set error state in future
+            setAgreementPdfUrl("error"); // Or handle UI state for error
+          }
+        }).catch(err => {
+          console.error("Failed to import agreement generator:", err);
+          setAgreementPdfUrl("error");
         });
+      } else {
+        console.log("User is null, cannot generate agreement");
       }
 
     } catch (error: any) {
@@ -110,12 +126,28 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
     setIsSubmitting(true);
     try {
       if (user) {
+        let agreementPath = null;
+
+        // Upload Agreement PDF
+        if (agreementBlob) {
+          const fileName = `${user.uid || 'guest'}/agreements/Rental_Agreement_${Date.now()}.pdf`;
+          const { error, data } = await supabase.storage
+            .from('kyc-documents')
+            .upload(fileName, agreementBlob, {
+              contentType: 'application/pdf'
+            });
+
+          if (error) throw error;
+          agreementPath = data.path;
+        }
+
         await updateKYCStatus(user.id, 'pending', {
           front: uploadedDocs.front,
           back: uploadedDocs.back,
           type: docType,
           agreementAccepted: true,
-          agreementDate: new Date().toISOString()
+          agreementDate: new Date().toISOString(),
+          agreementUrl: agreementPath
         });
       }
       setIsSuccess(true);
@@ -208,7 +240,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
                 <select
                   value={docType}
                   onChange={(e) => setDocType(e.target.value)}
-                  className="w-full bg-dark-card border border-white/10 rounded-2xl p-4 text-white appearance-none focus:outline-none focus:border-brand-primary transition-colors text-sm font-medium"
+                  className="w-full bg-[#1C1F26] border border-white/10 rounded-2xl p-4 text-white appearance-none focus:outline-none focus:border-brand-primary transition-colors text-sm font-medium"
                 >
                   <option style={{ backgroundColor: 'white', color: 'black' }}>Aadhaar Card</option>
                   <option style={{ backgroundColor: 'white', color: 'black' }}>PAN Card</option>
@@ -352,8 +384,13 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
                 </button>
               </div>
               <div className="flex-1 bg-gray-900 relative">
-                {agreementPdfUrl ? (
+                {agreementPdfUrl && agreementPdfUrl !== 'error' ? (
                   <iframe src={agreementPdfUrl} className="w-full h-full" title="Rental Agreement"></iframe>
+                ) : agreementPdfUrl === 'error' ? (
+                  <div className="flex items-center justify-center h-full text-red-500 flex-col gap-4">
+                    <span className="material-symbols-outlined text-4xl">error</span>
+                    <p>Failed to load agreement. Please try again.</p>
+                  </div>
                 ) : (
                   <div className="flex items-center justify-center h-full text-gray-500 flex-col gap-4">
                     <span className="material-symbols-outlined text-4xl animate-spin">progress_activity</span>
