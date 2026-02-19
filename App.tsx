@@ -92,7 +92,7 @@ function AppContent() {
         onNavigate={navigate}
       />
 
-      <main className={`flex-1 relative z-10 ${currentView === 'kyc' ? 'pt-0' : 'pt-24'} pb-12`}>
+      <main className={`flex-1 relative ${currentView === 'kyc' ? 'pt-0' : 'pt-24'} pb-12`}>
         {currentView === 'home' && <Home onNavigate={navigate} />}
         {currentView === 'listing' && (
           <Listing

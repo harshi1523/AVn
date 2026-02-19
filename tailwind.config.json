@@ -11,7 +11,11 @@
                     "accent": "#FB641B",
                     "success": "#10B981",
                     "warning": "#F59E0B",
-                    "error": "#EF4444"
+                    "error": "#EF4444",
+                    "card": "#121212",
+                    "page": "#1e1e1e",
+                    "muted": "rgba(255, 255, 255, 0.6)",
+                    "border": "rgba(255, 255, 255, 0.1)"
                 },
                 "dark": {
                     "page": "#1e1e1e",

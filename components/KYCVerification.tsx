@@ -7,10 +7,10 @@ interface KYCVerificationProps {
   onSkip: () => void;
 }
 
-type VerificationStep = 'personal' | 'documents' | 'review';
+type VerificationStep = 'personal' | 'documents' | 'agreement' | 'review';
 
 export default function KYCVerification({ onComplete, onSkip }: KYCVerificationProps) {
-  const { user, updateKYCStatus } = useStore();
+  const { user, updateKYCStatus, cart } = useStore();
   const [step, setStep] = useState<VerificationStep>('documents');
   const [docType, setDocType] = useState('Aadhaar Card');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -18,11 +18,23 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
 
   const [frontFile, setFrontFile] = useState<File | null>(null);
   const [backFile, setBackFile] = useState<File | null>(null);
+  const [activeStep, setActiveStep] = useState<VerificationStep>('documents'); // Renaming step to activeStep to avoid confusion with valid variable
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Agreement State
+  const [agreementPdfUrl, setAgreementPdfUrl] = useState<string | null>(null);
+  const [isAgreementViewed, setIsAgreementViewed] = useState(false);
+  const [isAgreementAccepted, setIsAgreementAccepted] = useState(false);
+  const [showAgreementModal, setShowAgreementModal] = useState(false);
+  const [uploadedDocs, setUploadedDocs] = useState<{ front: string, back: string } | null>(null);
+
+  // Import generator (dynamic import or moved to top if possible, here using dynamic for code splitting if needed, but top is better)
+  // Assuming top-level import: import { generateRentalAgreement } from '../lib/rentalAgreement';
 
   const steps = [
     { id: 'personal', label: 'PERSONAL INFO' },
     { id: 'documents', label: 'DOCUMENTS' },
+    { id: 'agreement', label: 'AGREEMENT' },
     { id: 'review', label: 'REVIEW' }
   ];
 
@@ -47,7 +59,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
     return fileName;
   };
 
-  const handleSubmit = async () => {
+  const handleDocumentsSubmit = async () => {
     if (!frontFile || !backFile) {
       setUploadError("Please upload both front and back sides of the document.");
       return;
@@ -62,21 +74,53 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
         uploadToSupabase(backFile, 'back')
       ]);
 
+      setUploadedDocs({ front: frontPath, back: backPath });
+      setStep('agreement');
+
+      // Generate Agreement PDF in background
       if (user) {
-        await updateKYCStatus(user.id, 'pending', {
-          front: frontPath,
-          back: backPath,
-          type: docType
+        // We need cart here. Ideally pass it as prop or fetch from store
+        // For now using useStore hook at top level
+        const { cart } = useStore.getState();
+        import('../lib/rentalAgreement').then(async ({ generateRentalAgreement }) => {
+          const blob = await generateRentalAgreement(user, cart);
+          const url = URL.createObjectURL(blob);
+          setAgreementPdfUrl(url);
         });
       }
-
-      setIsSuccess(true);
-      // Wait a moment before redirecting or leave it to user to click 'Continue'
-      // But per request: "wait for approve". So we show a success/pending state.
 
     } catch (error: any) {
       console.error("Upload error:", error);
       setUploadError(error.message || "Failed to upload documents. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFinalSubmit = async () => {
+    if (!isAgreementAccepted) {
+      setUploadError("Please accept the rental agreement.");
+      return;
+    }
+    if (!uploadedDocs) {
+      setStep('documents');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (user) {
+        await updateKYCStatus(user.id, 'pending', {
+          front: uploadedDocs.front,
+          back: uploadedDocs.back,
+          type: docType,
+          agreementAccepted: true,
+          agreementDate: new Date().toISOString()
+        });
+      }
+      setIsSuccess(true);
+    } catch (error: any) {
+      setUploadError(error.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -154,88 +198,180 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
           </div>
         </div>
 
-        {/* Select Document Type */}
-        <div className="space-y-4 mb-8">
-          <label className="block text-sm font-bold text-white">Select Document Type</label>
-          <div className="relative">
-            <select
-              value={docType}
-              onChange={(e) => setDocType(e.target.value)}
-              className="w-full bg-dark-card border border-white/10 rounded-2xl p-4 text-white appearance-none focus:outline-none focus:border-brand-primary transition-colors text-sm font-medium"
-            >
-              <option style={{ backgroundColor: 'white', color: 'black' }}>Aadhaar Card</option>
-              <option style={{ backgroundColor: 'white', color: 'black' }}>PAN Card</option>
-              <option style={{ backgroundColor: 'white', color: 'black' }}>Voter ID</option>
-              <option style={{ backgroundColor: 'white', color: 'black' }}>Driving License</option>
-              <option style={{ backgroundColor: 'white', color: 'black' }}>Passport</option>
-            </select>
-            <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
-              unfold_more
-            </span>
-          </div>
-        </div>
-
-        {/* Upload Zones */}
-        <div className="space-y-8 mb-10">
-          {/* Front Side */}
-          <div>
-            <label className="block text-sm font-bold text-white mb-4">Front Side</label>
-            <label className={`relative border-2 border-dashed ${frontFile ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-700'} rounded-3xl p-12 flex flex-col items-center justify-center group hover:border-brand-primary/40 transition-colors cursor-pointer`}>
-              <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileChange(e, 'front')} />
-              <div className={`w-16 h-16 rounded-full bg-white/5 flex items-center justify-center ${frontFile ? 'text-brand-success' : 'text-white/20'} group-hover:text-brand-primary transition-colors mb-4`}>
-                <span className="material-symbols-outlined text-3xl">{frontFile ? 'check' : 'add_a_photo'}</span>
+        {/* Step Content Switcher */}
+        {step === 'documents' && (
+          <>
+            {/* Select Document Type */}
+            <div className="space-y-4 mb-8">
+              <label className="block text-sm font-bold text-white">Select Document Type</label>
+              <div className="relative">
+                <select
+                  value={docType}
+                  onChange={(e) => setDocType(e.target.value)}
+                  className="w-full bg-dark-card border border-white/10 rounded-2xl p-4 text-white appearance-none focus:outline-none focus:border-brand-primary transition-colors text-sm font-medium"
+                >
+                  <option style={{ backgroundColor: 'white', color: 'black' }}>Aadhaar Card</option>
+                  <option style={{ backgroundColor: 'white', color: 'black' }}>PAN Card</option>
+                  <option style={{ backgroundColor: 'white', color: 'black' }}>Voter ID</option>
+                  <option style={{ backgroundColor: 'white', color: 'black' }}>Driving License</option>
+                  <option style={{ backgroundColor: 'white', color: 'black' }}>Passport</option>
+                </select>
+                <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
+                  unfold_more
+                </span>
               </div>
-              <p className="text-sm font-bold text-white mb-1">{frontFile ? frontFile.name : 'Tap to upload front'}</p>
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">JPG, PNG or PDF (Max 5MB)</p>
-            </label>
-          </div>
+            </div>
 
-          {/* Back Side */}
-          <div>
-            <label className="block text-sm font-bold text-white mb-4">Back Side</label>
-            <label className={`relative border-2 border-dashed ${backFile ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-700'} rounded-3xl p-12 flex flex-col items-center justify-center group hover:border-brand-primary/40 transition-colors cursor-pointer`}>
-              <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileChange(e, 'back')} />
-              <div className={`w-16 h-16 rounded-full bg-white/5 flex items-center justify-center ${backFile ? 'text-brand-success' : 'text-white/20'} group-hover:text-brand-primary transition-colors mb-4`}>
-                <span className="material-symbols-outlined text-3xl">{backFile ? 'check' : 'add_a_photo'}</span>
+            {/* Upload Zones */}
+            <div className="space-y-8 mb-10">
+              {/* Front Side */}
+              <div>
+                <label className="block text-sm font-bold text-white mb-4">Front Side</label>
+                <label className={`relative border-2 border-dashed ${frontFile ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-700'} rounded-3xl p-12 flex flex-col items-center justify-center group hover:border-brand-primary/40 transition-colors cursor-pointer`}>
+                  <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileChange(e, 'front')} />
+                  <div className={`w-16 h-16 rounded-full bg-white/5 flex items-center justify-center ${frontFile ? 'text-brand-success' : 'text-white/20'} group-hover:text-brand-primary transition-colors mb-4`}>
+                    <span className="material-symbols-outlined text-3xl">{frontFile ? 'check' : 'add_a_photo'}</span>
+                  </div>
+                  <p className="text-sm font-bold text-white mb-1">{frontFile ? frontFile.name : 'Tap to upload front'}</p>
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">JPG, PNG or PDF (Max 5MB)</p>
+                </label>
               </div>
-              <p className="text-sm font-bold text-white mb-1">{backFile ? backFile.name : 'Tap to upload back'}</p>
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">JPG, PNG or PDF (Max 5MB)</p>
-            </label>
-          </div>
-        </div>
 
-        {uploadError && (
-          <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-4 rounded-xl text-sm mb-6 flex items-center gap-3">
-            <span className="material-symbols-outlined">error</span>
-            {uploadError}
+              {/* Back Side */}
+              <div>
+                <label className="block text-sm font-bold text-white mb-4">Back Side</label>
+                <label className={`relative border-2 border-dashed ${backFile ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-700'} rounded-3xl p-12 flex flex-col items-center justify-center group hover:border-brand-primary/40 transition-colors cursor-pointer`}>
+                  <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileChange(e, 'back')} />
+                  <div className={`w-16 h-16 rounded-full bg-white/5 flex items-center justify-center ${backFile ? 'text-brand-success' : 'text-white/20'} group-hover:text-brand-primary transition-colors mb-4`}>
+                    <span className="material-symbols-outlined text-3xl">{backFile ? 'check' : 'add_a_photo'}</span>
+                  </div>
+                  <p className="text-sm font-bold text-white mb-1">{backFile ? backFile.name : 'Tap to upload back'}</p>
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">JPG, PNG or PDF (Max 5MB)</p>
+                </label>
+              </div>
+            </div>
+
+            {/* Information Notice */}
+            <div className="bg-white/5 rounded-2xl p-5 flex gap-4 mb-12">
+              <span className="material-symbols-outlined text-gray-500 text-xl">info</span>
+              <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
+                Make sure the text is clear and readable. Glare or blur might cause verification failure.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-6">
+              <button
+                onClick={handleDocumentsSubmit}
+                disabled={isSubmitting}
+                className="w-full bg-cta-gradient text-white font-black py-5 rounded-2xl shadow-glow hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Uploading...' : (
+                  <>
+                    Continue to Agreement <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  </>
+                )}
+              </button>
+              <button onClick={onSkip} className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] hover:text-white transition-colors">
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 'agreement' && (
+          <div className="animate-in fade-in slide-in-from-right-10 duration-500">
+            <div className="bg-[#1C1F26] border border-white/10 rounded-3xl p-6 mb-8 text-center">
+              <div className="w-16 h-16 bg-blue-500/20 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="material-symbols-outlined text-3xl">contract</span>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Digital Rental Agreement</h3>
+              <p className="text-sm text-gray-400 mb-6">Please review and sign the rental agreement to proceed.</p>
+
+              <button
+                onClick={() => {
+                  setShowAgreementModal(true);
+                  setIsAgreementViewed(true);
+                }}
+                className="bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-6 rounded-xl border border-white/10 transition-all flex items-center gap-2 mx-auto"
+              >
+                <span className="material-symbols-outlined">visibility</span>
+                View Agreement PDF
+              </button>
+            </div>
+
+            <div className={`transition-all duration-300 ${isAgreementViewed ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+              <label className="flex gap-4 p-4 border border-white/10 rounded-2xl cursor-pointer hover:bg-white/5 transition-colors items-start">
+                <div className={`w-6 h-6 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 ${isAgreementAccepted ? 'bg-brand-primary border-brand-primary text-black' : 'border-gray-600'}`}>
+                  {isAgreementAccepted && <span className="material-symbols-outlined text-sm font-bold">check</span>}
+                </div>
+                <input
+                  type="checkbox"
+                  className="hidden"
+                  checked={isAgreementAccepted}
+                  onChange={(e) => setIsAgreementAccepted(e.target.checked)}
+                  disabled={!isAgreementViewed}
+                />
+                <div className="flex-1">
+                  <p className="text-sm text-white font-bold">I accept the Terms & Conditions</p>
+                  <p className="text-xs text-gray-500 mt-1">I have read and understood the Rental Agreement, including the liability, damage, and return policies.</p>
+                </div>
+              </label>
+            </div>
+
+            <div className="flex flex-col gap-6 mt-8">
+              <button
+                onClick={handleFinalSubmit}
+                disabled={!isAgreementAccepted || isSubmitting}
+                className="w-full bg-cta-gradient text-white font-black py-5 rounded-2xl shadow-glow hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Submitting...' : (
+                  <>
+                    Submit & Verify <span className="material-symbols-outlined text-sm">verified</span>
+                  </>
+                )}
+              </button>
+              <button onClick={() => setStep('documents')} className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] hover:text-white transition-colors">
+                Back to Documents
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Information Notice */}
-        <div className="bg-white/5 rounded-2xl p-5 flex gap-4 mb-12">
-          <span className="material-symbols-outlined text-gray-500 text-xl">info</span>
-          <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
-            Make sure the text is clear and readable. Glare or blur might cause verification failure.
-          </p>
-        </div>
-
-        {/* Actions */}
-        <div className="flex flex-col gap-6">
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="w-full bg-cta-gradient text-white font-black py-5 rounded-2xl shadow-glow hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? 'Uploading & Verifying...' : (
-              <>
-                Submit Rental KYC <span className="material-symbols-outlined text-sm">arrow_forward</span>
-              </>
-            )}
-          </button>
-          <button onClick={onSkip} className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] hover:text-white transition-colors">
-            Cancel
-          </button>
-        </div>
+        {/* Agreement Modal */}
+        {showAgreementModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-[#1C1F26] w-full max-w-4xl h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-white/10">
+              <div className="p-4 flex justify-between items-center border-b border-white/10 bg-[#15171C]">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <span className="material-symbols-outlined text-brand-primary">description</span>
+                  Rental Agreement Review
+                </h3>
+                <button onClick={() => setShowAgreementModal(false)} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              <div className="flex-1 bg-gray-900 relative">
+                {agreementPdfUrl ? (
+                  <iframe src={agreementPdfUrl} className="w-full h-full" title="Rental Agreement"></iframe>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-gray-500 flex-col gap-4">
+                    <span className="material-symbols-outlined text-4xl animate-spin">progress_activity</span>
+                    <p>Generating Agreement...</p>
+                  </div>
+                )}
+              </div>
+              <div className="p-4 border-t border-white/10 bg-[#15171C] flex justify-end">
+                <button
+                  onClick={() => setShowAgreementModal(false)}
+                  className="bg-brand-primary text-black font-bold py-3 px-8 rounded-xl hover:brightness-110 transition-all"
+                >
+                  I have read the agreement
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Decorative Brand Sparkle */}

@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { products as initialProducts, Product } from './mockData';
+import { Product } from './mockData';
 import { createAndUploadInvoice } from './invoice';
 import { GoogleGenAI } from "@google/genai";
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, updateProfile as updateAuthProfile, updateEmail, sendPasswordResetEmail } from "firebase/auth";
-import { doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, collection, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, collection, deleteDoc, getDocs } from "firebase/firestore";
 import { getStorage, ref, deleteObject } from "firebase/storage";
 import { Notification, Address, CartItem, Order, Ticket, User, FinanceStats } from './types';
 
@@ -151,25 +151,17 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   // --- PRODUCTS: FIREBASE SYNC & SEEDING ---
   useEffect(() => {
     const productsCol = collection(db, 'products');
-    const unsubscribe = onSnapshot(productsCol, async (snapshot) => {
-      const liveProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
 
-      if (liveProducts.length === 0 && initialProducts.length > 0) {
-        // Seeding initial data
-        console.log("Seeding initial products to Firestore...");
-        try {
-          // We can't use batch for too many items if > 500, but for mock data (20 items) it's fine.
-          // However, let's do one by one to avoid complex batch logic for now or just set them.
-          // Actually, let's just use Promise.all to seed.
-          await Promise.all(initialProducts.map(p => setDoc(doc(db, 'products', p.id), p)));
-          console.log("Seeding complete.");
-        } catch (err) {
-          console.error("Error seeding products:", err);
-        }
-      } else {
-        setProducts(liveProducts);
-      }
+    // 1. Setup Realtime Listener
+    const unsubscribe = onSnapshot(productsCol, (snapshot) => {
+      const liveProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+      setProducts(liveProducts);
+    }, (error) => {
+      console.error("Error fetching products:", error);
     });
+
+    // 2. Initial Seeding Check (REMOVED)
+    // const checkAndSeed = async () => { ... }
 
     return () => unsubscribe();
   }, []);
@@ -1003,6 +995,28 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
           updateData.pendingCheckout = null; // Clear pending checkout
 
           console.log("Order auto-placed:", newOrder.id);
+
+          // CRITICAL FIX: Save to Firestore BEFORE returning!
+          try {
+            await updateDoc(userDocRef, updateData);
+            console.log("✅ KYC Status & Order updated in Firestore for user:", userId);
+
+            // Also update local state optimistically here because we are returning early
+            setAllUsers(prev => prev.map(u => {
+              if (u.id === userId) {
+                return {
+                  ...u,
+                  ...updateData
+                };
+              }
+              return u;
+            }));
+
+          } catch (err) {
+            console.error("Error saving auto-placed order updates:", err);
+            throw err;
+          }
+
           return `Order ID: ${newOrder.id} has been placed successfully.`;
         }
       } catch (err) {
@@ -1010,15 +1024,45 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       }
     }
 
-    await updateDoc(userDocRef, updateData);
-    console.log("✅ KYC Status updated in Firestore for user:", userId, "Status:", status);
+    // --- OPTIMISTIC UI UPDATE ---
+    // Update local state immediately to reflect changes in UI
+    setAllUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        return {
+          ...u,
+          kycStatus: status,
+          kycDocuments: documents || u.kycDocuments,
+          kycVerifiedDate: updateData.kycVerifiedDate, // Ensure this field updates if it's set
+          kycVerifiedBy: updateData.kycVerifiedBy,
+          kycRejectionReason: updateData.kycRejectionReason,
+          kycHistory: updateData.kycHistory,
+          // If approved, clear checkout pending state locally too if we processed it
+          pendingCheckout: status === 'approved' && updateData.pendingCheckout === null ? null : u.pendingCheckout,
+          orders: status === 'approved' && updateData.orders ? updateData.orders : u.orders,
+          cart: status === 'approved' && updateData.cart ? updateData.cart : u.cart
+        };
+      }
+      return u;
+    }));
 
-    // The onSnapshot listener (lines 132-145) will automatically update allUsers
-    // No need for optimistic update here as it can cause race conditions
-
-    // Optimistic update for current user if applicable (only if admin is updating their own KYC)
+    // Optimistic update for current user if applicable (only if admin is updating their own KYC, unlikely but possible)
     if (user && user.id === userId) {
-      setUser(prev => prev ? { ...prev, ...updateData } : null);
+      setUser(prev => prev ? {
+        ...prev,
+        ...updateData
+      } : null);
+    }
+
+    try {
+      await updateDoc(userDocRef, updateData);
+      console.log("✅ KYC Status updated in Firestore for user:", userId, "Status:", status);
+    } catch (error) {
+      console.error("❌ Failed to update KYC status:", error);
+      alert("Failed to update KYC status. Please try again.");
+      // Revert optimistic update (optional, but good practice if critical)
+      // For now, simpler to just alert and maybe refresh
+      refreshProfile();
+      // Also maybe trigger a re-fetch of allUsers if we had a way to force it easily without full teardown
     }
   };
 

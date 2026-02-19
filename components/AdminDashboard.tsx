@@ -147,7 +147,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 py-8 md:px-8 animate-in fade-in duration-500 relative">
+    <div className="mx-auto max-w-[1440px] px-4 py-8 md:px-8">
       {/* Mobile Menu logic ... */}
       <button
         onClick={() => setIsMobileMenuOpen(true)}
@@ -1408,9 +1408,9 @@ export default function AdminDashboard() {
       {/* KYC Review Modal */}
       {
         selectedKYCUser && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-28 lg:pt-32">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedKYCUser(null)} />
-            <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[85vh]">
               <div className="flex justify-between items-center mb-6">
                 <div>
                   <h3 className="text-2xl font-bold text-white">KYC Verification</h3>
@@ -1619,9 +1619,9 @@ export default function AdminDashboard() {
       {/* User Profile Modal */}
       {
         viewingUser && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[40] flex items-start justify-center p-4 pt-32 md:pt-36 lg:pt-40">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setViewingUser(null)} />
-            <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[85vh]">
               <div className="flex justify-between items-start mb-8">
                 <div className="flex gap-4">
                   <div className="w-16 h-16 rounded-full bg-brand-primary/20 flex items-center justify-center text-brand-primary text-2xl font-bold">
@@ -1954,9 +1954,9 @@ export default function AdminDashboard() {
           const adminList = allUsers.filter(u => u.role === 'admin');
 
           return (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-28 lg:pt-32">
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedTicket(null)} />
-              <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-5xl shadow-2xl overflow-y-auto max-h-[90vh]">
+              <div className="relative bg-brand-card border border-brand-border rounded-[2rem] p-8 w-full max-w-5xl shadow-2xl overflow-y-auto max-h-[85vh]">
                 {/* Header */}
                 <div className="flex justify-between items-start mb-6 pb-6 border-b border-white/10">
                   <div>
