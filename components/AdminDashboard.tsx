@@ -9,7 +9,7 @@ import { generateInvoice } from "../lib/invoice";
 export default function AdminDashboard() {
   const { user, finance, orders, tickets, allUsers, products: allProducts, logout, updateOrderStatus, updateTicketStatus, updateKYCStatus, deleteProduct, updateOrderNotes, updateUserStatus, addTicketMessage, updateTicketPriority, assignTicket } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'orders' | 'users' | 'financials' | 'reports' | 'settings' | 'support'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'orders' | 'users' | 'financials' | 'support'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -196,9 +196,7 @@ export default function AdminDashboard() {
                 { id: 'orders', label: 'Orders', icon: 'local_shipping' },
                 { id: 'financials', label: 'Financials', icon: 'payments' },
                 { id: 'users', label: 'Users & KYC', icon: 'group' },
-                { id: 'support', label: 'Support Tickets', icon: 'confirmation_number' },
-                { id: 'reports', label: 'Reports', icon: 'analytics' },
-                { id: 'settings', label: 'Settings', icon: 'settings' }
+                { id: 'support', label: 'Support Tickets', icon: 'confirmation_number' }
               ].map(tab => (
                 <button
                   key={tab.id}

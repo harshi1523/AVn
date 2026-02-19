@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useStore } from "../lib/store";
+import { generateRentalAgreement } from '../lib/rentalAgreement';
 
 interface KYCVerificationProps {
   onComplete: () => void;
@@ -50,7 +51,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
   const uploadToSupabase = async (file: File, side: 'front' | 'back') => {
     if (!user) throw new Error("User not authenticated");
     const fileExt = file.name.split('.').pop();
-    const fileName = `${user.uid || 'guest'}/${docType.replace(/\s+/g, '_')}_${side}_${Date.now()}.${fileExt}`;
+    const fileName = `${user.id || 'guest'}/${docType.replace(/\s+/g, '_')}_${side}_${Date.now()}.${fileExt}`;
 
     const { error } = await supabase.storage
       .from('kyc-documents')
@@ -82,25 +83,21 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
       if (user) {
         console.log("Found user, starting agreement generation...");
         // Use cart from the hook
-        import('../lib/rentalAgreement').then(async ({ generateRentalAgreement }) => {
-          console.log("imported generator");
-          try {
-            // Ensure cart has items or handle empty cart gracefully in generator
-            console.log("Generating with cart:", cart);
-            const blob = await generateRentalAgreement(user, cart);
+        try {
+          console.log("Generating with cart:", cart);
+          generateRentalAgreement(user, cart).then(blob => {
             console.log("Generated blob:", blob);
             const url = URL.createObjectURL(blob);
             setAgreementPdfUrl(url);
             setAgreementBlob(blob);
-          } catch (err) {
-            console.error("Failed to generate agreement:", err);
-            // Fallback or alert? For now just log, maybe set error state in future
-            setAgreementPdfUrl("error"); // Or handle UI state for error
-          }
-        }).catch(err => {
-          console.error("Failed to import agreement generator:", err);
+          }).catch(err => {
+            console.error("Failed to generate agreement promise:", err);
+            setAgreementPdfUrl("error");
+          });
+        } catch (err) {
+          console.error("Failed to initiate agreement generation:", err);
           setAgreementPdfUrl("error");
-        });
+        }
       } else {
         console.log("User is null, cannot generate agreement");
       }
@@ -123,6 +120,11 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
       return;
     }
 
+    if (!agreementBlob) {
+      setUploadError("Agreement PDF is still generating or failed. Please try viewing it again.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       if (user) {
@@ -130,29 +132,50 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
 
         // Upload Agreement PDF
         if (agreementBlob) {
-          const fileName = `${user.uid || 'guest'}/agreements/Rental_Agreement_${Date.now()}.pdf`;
+          if (agreementBlob.size === 0) {
+            throw new Error("Generated agreement PDF is empty. Please contact support.");
+          }
+          console.log("Uploading agreement blob of size:", agreementBlob.size);
+
+          // Convert Blob to File for better compatibility
+          const fileName = `Rental_Agreement_${Date.now()}.pdf`;
+          // NOTE: Supabase Storage paths often don't need the bucket name in the path if using .from('bucketName')
+          // But strict RLS policies might require user ID folder.
+          const filePath = `${user.id || 'guest'}/${fileName}`;
+          const file = new File([agreementBlob], fileName, { type: 'application/pdf' });
+
           const { error, data } = await supabase.storage
-            .from('kyc-documents')
-            .upload(fileName, agreementBlob, {
+            .from('agreements') // UPDATED BUCKET NAME
+            .upload(filePath, file, {
               contentType: 'application/pdf'
             });
 
-          if (error) throw error;
+          if (error) {
+            console.error("Supabase upload error:", error);
+            alert(`Upload Failed: ${error.message} (Details: ${JSON.stringify(error)})`); // VISIBLE DEBUGGING
+            throw error;
+          }
+          console.log("Supabase upload success, path:", data.path);
           agreementPath = data.path;
+        } else {
+          console.warn("No agreement blob to upload!");
         }
 
+        console.log("Updating KYC status with agreementUrl:", agreementPath);
         await updateKYCStatus(user.id, 'pending', {
           front: uploadedDocs.front,
           back: uploadedDocs.back,
           type: docType,
           agreementAccepted: true,
           agreementDate: new Date().toISOString(),
-          agreementUrl: agreementPath
+          agreementUrl: agreementPath || undefined
         });
+
+        setIsSuccess(true);
       }
-      setIsSuccess(true);
     } catch (error: any) {
-      setUploadError(error.message);
+      console.error("Submission error:", error);
+      setUploadError(error.message || "Failed to submit documents. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

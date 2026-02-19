@@ -248,13 +248,17 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   }, [user?.id]);
 
   const generateAIEmail = async (order: Order, type: 'new' | 'update') => {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) return;
+    const apiKey = import.meta.env.VITE_GOOGLE_AI_KEY;
+    if (!apiKey) {
+      console.warn("VITE_GOOGLE_AI_KEY is missing. AI email generation skipped.");
+      return;
+    }
     try {
       const ai = new GoogleGenAI({ apiKey });
       const prompt = `Draft a friendly, professional email notification for a technology platform named 'SB Tech Solution'. Event: ${type === 'new' ? 'Order Placed' : 'Order Status Changed to ' + order.status}. User: ${order.userName}. Order ID: ${order.id}. Order Items: ${order.items.map(i => `${i.name} (x${i.quantity})`).join(', ')}. Tone: Courteous, helpful, and clear. Avoid complex tech jargon.`;
+
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-1.5-flash',
         contents: prompt,
       });
       const emailText = response.text || "Your order update has been processed.";

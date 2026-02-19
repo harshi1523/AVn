@@ -1,4 +1,4 @@
-import { jsPDF } from 'jspdf';
+import jsPDF from 'jspdf';
 import { User, CartItem } from './store';
 
 export const generateRentalAgreement = async (user: User, cartItems: CartItem[]): Promise<Blob> => {
