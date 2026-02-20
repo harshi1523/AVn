@@ -21,6 +21,7 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
     const [upiId, setUpiId] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [addressError, setAddressError] = useState<string | null>(null);
+    const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
     // Address Form State
     const [showAddressForm, setShowAddressForm] = useState(false);
@@ -101,45 +102,42 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
     };
 
     const handlePlaceOrder = async () => {
+        setCheckoutError(null);
         const deliveryAddress = deliveryMethod === 'pickup'
             ? "Self Pickup from AvN Hub"
             : addresses.find(a => a.id === selectedAddress)?.address || "Default Address";
 
         const rentalDetails = containsRental ? {
             start: new Date().toISOString().split('T')[0],
-            end: new Date(new Date().setMonth(new Date().getMonth() + 12)).toISOString().split('T')[0],
+            end: new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0],
             deposit: deposit,
             method: deliveryMethod
         } : undefined;
-
-        // Rental validations (KYC etc) - reused from existing
-        if (containsRental && user?.kycStatus !== 'approved') {
-            const pendingDetails = JSON.parse(JSON.stringify({
-                address: deliveryAddress,
-                rentalDetails,
-                total: totalToPay,
-                paymentMethod,
-                items: cart
-            }));
-
-            if (confirm("Identity Verification Required for rentals. Proceed to upload documents?")) {
-                await savePendingCheckout(pendingDetails);
-                window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } }));
-            }
-            return;
-        }
 
         setIsProcessing(true);
         try {
             await placeOrder(deliveryAddress, paymentMethod, totalToPay, rentalDetails);
             setIsProcessing(false);
             onSuccess(containsRental);
-        } catch (error) {
+        } catch (error: any) {
             setIsProcessing(false);
-            alert("Failed to place order. Please try again.");
-            console.error("Checkout Error:", error);
+            const code = error?.message;
+            if (code === 'KYC_NOT_APPROVED') {
+                const pendingDetails = JSON.parse(JSON.stringify({
+                    address: deliveryAddress, rentalDetails,
+                    total: totalToPay, paymentMethod, items: cart
+                }));
+                await savePendingCheckout(pendingDetails);
+                window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } }));
+            } else if (code === 'MAX_RENTALS_REACHED') {
+                setCheckoutError('You already have 3 active rentals. Please return a device before renting another.');
+            } else if (code === 'TENURE_EXCEEDED') {
+                setCheckoutError('Maximum rental duration is 3 months. Please update your cart.');
+            } else {
+                setCheckoutError('Failed to place order. Please try again.');
+                console.error('Checkout Error:', error);
+            }
         }
-
     };
 
     const handleAddAddress = async (e: React.FormEvent) => {
@@ -491,6 +489,13 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                     </div>
                 </label>
             </div>
+
+            {checkoutError && (
+                <div className="mt-6 flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-medium">
+                    <span className="material-symbols-outlined text-red-500 flex-shrink-0">error</span>
+                    <span>{checkoutError}</span>
+                </div>
+            )}
 
             <button
                 onClick={handleContinue}

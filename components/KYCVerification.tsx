@@ -29,6 +29,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
   const [isAgreementAccepted, setIsAgreementAccepted] = useState(false);
   const [showAgreementModal, setShowAgreementModal] = useState(false);
   const [uploadedDocs, setUploadedDocs] = useState<{ front: string, back: string } | null>(null);
+  const [isGeneratingAgreement, setIsGeneratingAgreement] = useState(false);
 
   // Import generator (dynamic import or moved to top if possible, here using dynamic for code splitting if needed, but top is better)
   // Assuming top-level import: import { generateRentalAgreement } from '../lib/rentalAgreement';
@@ -79,27 +80,25 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
       setUploadedDocs({ front: frontPath, back: backPath });
       setStep('agreement');
 
-      // Generate Agreement PDF in background
+      // Generate Agreement PDF — await it so it's ready before the user can submit
       if (user) {
-        console.log("Found user, starting agreement generation...");
-        // Use cart from the hook
+        setIsGeneratingAgreement(true);
+        console.log("Generating rental agreement for user:", user.id);
         try {
-          console.log("Generating with cart:", cart);
-          generateRentalAgreement(user, cart).then(blob => {
-            console.log("Generated blob:", blob);
-            const url = URL.createObjectURL(blob);
-            setAgreementPdfUrl(url);
-            setAgreementBlob(blob);
-          }).catch(err => {
-            console.error("Failed to generate agreement promise:", err);
-            setAgreementPdfUrl("error");
-          });
+          const blob = await generateRentalAgreement(user, cart);
+          console.log("Agreement blob generated, size:", blob.size);
+          const url = URL.createObjectURL(blob);
+          setAgreementPdfUrl(url);
+          setAgreementBlob(blob);
         } catch (err) {
-          console.error("Failed to initiate agreement generation:", err);
+          console.error("Failed to generate agreement:", err);
           setAgreementPdfUrl("error");
+        } finally {
+          setIsGeneratingAgreement(false);
         }
       } else {
-        console.log("User is null, cannot generate agreement");
+        console.warn("User is null — cannot generate agreement");
+        setAgreementPdfUrl("error");
       }
 
     } catch (error: any) {
@@ -121,54 +120,52 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
     }
 
     if (!agreementBlob) {
-      setUploadError("Agreement PDF is still generating or failed. Please try viewing it again.");
+      setUploadError("Agreement PDF is still generating. Please wait a moment and try again.");
+      return;
+    }
+
+    if (agreementBlob.size === 0) {
+      setUploadError("Agreement PDF is empty. Please go back and try again.");
       return;
     }
 
     setIsSubmitting(true);
     try {
       if (user) {
-        let agreementPath = null;
+        let agreementUrl: string | undefined = undefined;
 
-        // Upload Agreement PDF
-        if (agreementBlob) {
-          if (agreementBlob.size === 0) {
-            throw new Error("Generated agreement PDF is empty. Please contact support.");
-          }
-          console.log("Uploading agreement blob of size:", agreementBlob.size);
+        // Upload Agreement PDF to Supabase Storage
+        console.log("Uploading agreement blob, size:", agreementBlob.size);
+        const timestamp = Date.now();
+        const fileName = `public/${user.id}/Rental_Agreement_${timestamp}.pdf`;
+        const file = new File([agreementBlob], `Rental_Agreement_${timestamp}.pdf`, { type: 'application/pdf' });
 
-          // Convert Blob to File for better compatibility
-          const fileName = `Rental_Agreement_${Date.now()}.pdf`;
-          // NOTE: Supabase Storage paths often don't need the bucket name in the path if using .from('bucketName')
-          // But strict RLS policies might require user ID folder.
-          const filePath = `${user.id || 'guest'}/${fileName}`;
-          const file = new File([agreementBlob], fileName, { type: 'application/pdf' });
+        const { error: uploadError } = await supabase.storage
+          .from('agreements')
+          .upload(fileName, file, {
+            upsert: true,
+            contentType: 'application/pdf'
+          });
 
-          const { error, data } = await supabase.storage
-            .from('agreements') // UPDATED BUCKET NAME
-            .upload(filePath, file, {
-              contentType: 'application/pdf'
-            });
-
-          if (error) {
-            console.error("Supabase upload error:", error);
-            alert(`Upload Failed: ${error.message} (Details: ${JSON.stringify(error)})`); // VISIBLE DEBUGGING
-            throw error;
-          }
-          console.log("Supabase upload success, path:", data.path);
-          agreementPath = data.path;
-        } else {
-          console.warn("No agreement blob to upload!");
+        if (uploadError) {
+          console.error("Supabase upload error:", uploadError);
+          throw new Error(`Agreement upload failed: ${uploadError.message}`);
         }
 
-        console.log("Updating KYC status with agreementUrl:", agreementPath);
+        const { data: { publicUrl } } = supabase.storage
+          .from('agreements')
+          .getPublicUrl(fileName);
+
+        agreementUrl = publicUrl;
+        console.log("Agreement uploaded to Supabase Storage. URL:", agreementUrl);
+
         await updateKYCStatus(user.id, 'pending', {
           front: uploadedDocs.front,
           back: uploadedDocs.back,
           type: docType,
           agreementAccepted: true,
           agreementDate: new Date().toISOString(),
-          agreementUrl: agreementPath || undefined
+          agreementUrl: agreementUrl
         });
 
         setIsSuccess(true);
@@ -348,10 +345,25 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
                   setShowAgreementModal(true);
                   setIsAgreementViewed(true);
                 }}
-                className="bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-6 rounded-xl border border-white/10 transition-all flex items-center gap-2 mx-auto"
+                disabled={isGeneratingAgreement || !agreementPdfUrl || agreementPdfUrl === 'error'}
+                className="bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-6 rounded-xl border border-white/10 transition-all flex items-center gap-2 mx-auto disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <span className="material-symbols-outlined">visibility</span>
-                View Agreement PDF
+                {isGeneratingAgreement ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+                    Generating PDF...
+                  </>
+                ) : agreementPdfUrl === 'error' ? (
+                  <>
+                    <span className="material-symbols-outlined text-red-400">error</span>
+                    Generation Failed – Go Back
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined">visibility</span>
+                    View Agreement PDF
+                  </>
+                )}
               </button>
             </div>
 
@@ -377,7 +389,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
             <div className="flex flex-col gap-6 mt-8">
               <button
                 onClick={handleFinalSubmit}
-                disabled={!isAgreementAccepted || isSubmitting}
+                disabled={!isAgreementAccepted || isSubmitting || isGeneratingAgreement}
                 className="w-full bg-cta-gradient text-white font-black py-5 rounded-2xl shadow-glow hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? 'Submitting...' : (

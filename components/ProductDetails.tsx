@@ -14,6 +14,7 @@ export default function ProductDetails({ productId, onBack }: ProductDetailsProp
 
   const [isAdding, setIsAdding] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
+  const [cartError, setCartError] = useState<string | null>(null);
 
   const [localReviews] = useState<Review[]>(product?.reviewsList || []);
 
@@ -23,7 +24,7 @@ export default function ProductDetails({ productId, onBack }: ProductDetailsProp
   if (!product) return <div className="p-20 text-center text-white/20 font-display text-xl uppercase tracking-widest">Product Not Found</div>;
 
   const [purchaseMode, setPurchaseMode] = useState<'rent' | 'buy'>(product.type || 'buy');
-  const [selectedTenure, setSelectedTenure] = useState(product.rentalOptions?.[0]?.months || 12);
+  const [selectedTenure, setSelectedTenure] = useState(1);
 
   const isModeRent = purchaseMode === 'rent';
   const selectedRentalOption = product.rentalOptions?.find(o => o.months === selectedTenure);
@@ -33,23 +34,32 @@ export default function ProductDetails({ productId, onBack }: ProductDetailsProp
 
   const isInWishlist = wishlist.includes(product.id);
 
-  const handleAddToCart = (shouldNavigateToCart: boolean = false) => {
+  const handleAddToCart = async (shouldNavigateToCart: boolean = false) => {
     if (!user) {
       toggleAuth(true);
       return;
     }
-
-    if (shouldNavigateToCart) {
-      addToCart(product.id, purchaseMode, isModeRent ? selectedTenure : undefined, { ram: product.variants?.ram?.[0], ssd: product.variants?.ssd?.[0], color: product.variants?.colors?.[0]?.name });
-      window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'checkout' } }));
-    } else {
-      setIsAdding(true);
-      setTimeout(() => {
-        addToCart(product.id, purchaseMode, isModeRent ? selectedTenure : undefined, { ram: product.variants?.ram?.[0], ssd: product.variants?.ssd?.[0], color: product.variants?.colors?.[0]?.name });
-        setIsAdding(false);
-        setJustAdded(true);
-        setTimeout(() => setJustAdded(false), 2500);
-      }, 800);
+    setCartError(null);
+    try {
+      await addToCart(product.id, purchaseMode, isModeRent ? selectedTenure : undefined, { ram: product.variants?.ram?.[0], ssd: product.variants?.ssd?.[0], color: product.variants?.colors?.[0]?.name });
+      if (shouldNavigateToCart) {
+        window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'checkout' } }));
+      } else {
+        setIsAdding(true);
+        setTimeout(() => { setIsAdding(false); setJustAdded(true); setTimeout(() => setJustAdded(false), 2500); }, 800);
+      }
+    } catch (err: any) {
+      const code = err?.message;
+      if (code === 'KYC_NOT_APPROVED') {
+        setCartError('KYC verification required before renting. Please complete your identity verification.');
+        setTimeout(() => window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } })), 1500);
+      } else if (code === 'MAX_RENTALS_REACHED') {
+        setCartError('You already have 3 active rentals. Return a device to rent another.');
+      } else if (code === 'TENURE_EXCEEDED') {
+        setCartError('Maximum rental duration is 3 months.');
+      } else {
+        setCartError('Failed to add item. Please try again.');
+      }
     }
   };
 
@@ -94,6 +104,12 @@ export default function ProductDetails({ productId, onBack }: ProductDetailsProp
               {product.status === 'OUT_OF_STOCK' && <span className="text-red-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1"><span className="material-symbols-outlined text-sm">block</span> Out of Stock</span>}
             </div>
 
+            {cartError && (
+              <div className="mb-3 flex items-start gap-2 p-3 bg-red-900/30 border border-red-500/40 rounded-xl text-red-400 text-xs font-medium">
+                <span className="material-symbols-outlined text-sm flex-shrink-0 mt-0.5">error</span>
+                <span>{cartError}</span>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => handleAddToCart(false)}
@@ -172,7 +188,7 @@ export default function ProductDetails({ productId, onBack }: ProductDetailsProp
 
                   <h3 className="venus-heading">Tenure Selection</h3>
                   <div className="grid grid-cols-3 gap-3 mb-4">
-                    {[3, 6, 12].map((m) => (
+                    {[1, 2, 3].map((m) => (
                       <button
                         key={m}
                         onClick={() => setSelectedTenure(m)}
@@ -184,7 +200,7 @@ export default function ProductDetails({ productId, onBack }: ProductDetailsProp
                     ))}
                   </div>
                   <p className="text-[10px] font-bold text-brand-primary uppercase tracking-[0.2em] mb-10">
-                    * Value Proposition: Choosing a longer tenure (e.g., 12M) significantly reduces your monthly rental commitment.
+                    * Rental duration is capped at 3 months. KYC approval required before renting.
                   </p>
 
                   <ul className="space-y-4 mb-8">

@@ -26,6 +26,7 @@ interface StoreContextType {
   isCartOpen: boolean;
   isAuthOpen: boolean;
   isDBReady: boolean;
+  isProductsReady: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; message: string; role?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; message: string; role?: string; isNewUser?: boolean }>;
   signup: (name: string, email: string, password: string) => Promise<{ success: boolean; message: string }>;
@@ -34,7 +35,7 @@ interface StoreContextType {
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   logout: () => Promise<void>;
-  addToCart: (productId: string, type: 'rent' | 'buy', tenure?: number, variants?: CartItem['variants'], warranty?: CartItem['warranty']) => void;
+  addToCart: (productId: string, type: 'rent' | 'buy', tenure?: number, variants?: CartItem['variants'], warranty?: CartItem['warranty']) => Promise<void>;
   updateQuantity: (cartItemId: string, delta: number) => void;
   updateTenure: (cartItemId: string, newTenure: number) => Promise<void>;
   removeFromCart: (cartItemId: string) => void;
@@ -73,6 +74,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [isDBReady, setIsDBReady] = useState(false);
+  const [isProductsReady, setIsProductsReady] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
@@ -157,8 +159,10 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     const unsubscribe = onSnapshot(productsCol, (snapshot) => {
       const liveProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
       setProducts(liveProducts);
+      setIsProductsReady(true); // Mark products as ready after first snapshot
     }, (error) => {
       console.error("Error fetching products:", error);
+      setIsProductsReady(true); // Still mark ready on error so UI doesn't hang
     });
 
     // 2. Initial Seeding Check (REMOVED)
@@ -472,11 +476,36 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   const syncUserField = async (field: string, data: any) => {
     if (!user) return;
     const userDocRef = doc(db, 'users', user.id);
-    await updateDoc(userDocRef, { [field]: data });
+    const sanitized = JSON.parse(JSON.stringify(data ?? null)); // strips undefined values
+    await updateDoc(userDocRef, { [field]: sanitized });
   };
+
+  // --- RENTAL BUSINESS RULES ---
+  const MAX_RENTAL_MONTHS = 3;
+  const MAX_ACTIVE_RENTALS = 3;
+
+  const getActiveRentalCount = () =>
+    orders.filter(o =>
+      o.items.some(i => i.type === 'rent') &&
+      !['Delivered', 'Returned', 'Cancelled'].includes(o.status)
+    ).length;
 
   const addToCart = async (productId: string, type: 'rent' | 'buy', tenure?: number, variants?: CartItem['variants'], warranty?: CartItem['warranty']) => {
     if (!user) { setIsAuthOpen(true); return; }
+
+    // --- RENTAL BUSINESS RULE CHECKS ---
+    if (type === 'rent') {
+      if (user.kycStatus !== 'approved') {
+        throw new Error('KYC_NOT_APPROVED');
+      }
+      if (tenure && tenure > MAX_RENTAL_MONTHS) {
+        throw new Error('TENURE_EXCEEDED');
+      }
+      if (getActiveRentalCount() >= MAX_ACTIVE_RENTALS) {
+        throw new Error('MAX_RENTALS_REACHED');
+      }
+    }
+
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
@@ -540,9 +569,18 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
   const placeOrder = async (address: string, paymentMethod: string, totalOverride?: number, rentalDetails?: { start?: string, end?: string, deposit?: number, method?: 'pickup' | 'delivery' }) => {
     if (!user) return;
+
+    // --- RENTAL BUSINESS RULE RE-VALIDATION (safety net) ---
+    const rentalItems = cart.filter(i => i.type === 'rent');
+    if (rentalItems.length > 0) {
+      if (user.kycStatus !== 'approved') throw new Error('KYC_NOT_APPROVED');
+      if (getActiveRentalCount() >= MAX_ACTIVE_RENTALS) throw new Error('MAX_RENTALS_REACHED');
+      if (rentalItems.some(i => i.tenure && i.tenure > MAX_RENTAL_MONTHS)) throw new Error('TENURE_EXCEEDED');
+    }
+
     const finalTotal = totalOverride || cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     const newOrder: Order = {
-      id: `ORD-${Math.floor(Math.random() * 10000)}`,
+      id: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
       date: new Date().toISOString().split('T')[0],
       userId: user.id,
       userName: user.name,
@@ -990,7 +1028,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
           const no = targetUser.pendingCheckout;
           const newOrder: Order = {
-            id: `ORD-${Math.floor(Math.random() * 10000)}`,
+            id: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
             date: new Date().toISOString().split('T')[0],
             userId: targetUser.id,
             userName: targetUser.name,
@@ -1153,7 +1191,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
   return (
     <StoreContext.Provider value={{
-      user, setUser, cart, orders, tickets, wishlist, allUsers, finance, products, notifications, isCartOpen, isAuthOpen, isDBReady,
+      user, setUser, cart, orders, tickets, wishlist, allUsers, finance, products, notifications, isCartOpen, isAuthOpen, isDBReady, isProductsReady,
       login, loginWithGoogle, signup, logout, resetPassword, addProduct, updateProduct, deleteProduct, addToCart, updateQuantity, removeFromCart, placeOrder, addTicket, addTicketMessage, updateTicketPriority, assignTicket, toggleWishlist,
       toggleCart: setIsCartOpen, toggleAuth: setIsAuthOpen, updateOrderStatus, updateTicketStatus, updateKYCStatus, updateUserStatus, dismissNotification,
       addAddress, updateAddress, setDefaultAddress, removeAddress, updateRentalPreferences, savePendingCheckout, refreshProfile, updateProfile, updateEmailAddress
