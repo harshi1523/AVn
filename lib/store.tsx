@@ -141,7 +141,17 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       console.log("Admin User detected. Fetching all users...");
       const usersCol = collection(db, 'users');
       const unsubscribe = onSnapshot(usersCol, (snapshot) => {
-        const usersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+        const dedupeOrders = (rawOrders: any[]) => {
+          if (!Array.isArray(rawOrders)) return [];
+          return Object.values(
+            rawOrders.reduce((acc: Record<string, any>, o: any) => { acc[o.id] = o; return acc; }, {})
+          );
+        };
+        const usersList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          orders: dedupeOrders((doc.data() as any).orders)
+        } as User));
         console.log("Fetched users:", usersList.length);
         setAllUsers(usersList);
       });
@@ -234,7 +244,12 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
         // console.log("🔥 Fetched Cart from DB:", data.cart?.length || 0);
 
         setCart(data.cart || []);
-        setOrders(data.orders || []);
+        const rawOrders: Order[] = data.orders || [];
+        const uniqueOrders = Object.values(
+          rawOrders.reduce((acc: Record<string, Order>, o: Order) => { acc[o.id] = o; return acc; }, {})
+        ) as Order[];
+        setOrders(uniqueOrders);
+
         setTickets(data.tickets || []);
         setWishlist(data.wishlist || []);
         // Keep the local user state up to date with firestore (addresses, profile, etc.)
@@ -643,7 +658,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
         console.error("❌ Error creating financial record:", err);
       }
 
-      setOrders(prev => [sanitizedOrder, ...prev]);
+      // Note: onSnapshot will fire and update orders state with deduplication
       setCart([]);
 
       // Update user state optimistically to ensure user.orders is in sync
