@@ -27,7 +27,7 @@ export interface Review {
 export interface Product {
   id: string;
   deposit?: number;
-  type: 'rent' | 'buy' | 'rent_and_buy';
+  availability: 'rent' | 'buy' | 'both';
   brand: 'Apple' | 'Dell' | 'HP' | 'Lenovo' | 'Asus' | 'Acer' | 'Razer' | 'Logitech' | 'Generic';
   category?: 'Laptop' | 'Desktop' | 'Monitor' | 'Tablet' | 'Audio' | 'Keyboards' | 'Mice' | 'Gaming' | 'Accessories';
   name: string;

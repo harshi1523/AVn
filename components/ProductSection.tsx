@@ -9,7 +9,7 @@ interface ProductSummary {
   image: string;
   rating?: number;
   condition?: string;
-  type?: 'rent' | 'buy';
+  availability?: 'rent' | 'buy' | 'both';
   status?: string;
 }
 
@@ -37,7 +37,7 @@ export default function ProductSection({ title, products, onProductClick, onView
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-5">
         {products.map((product) => {
           const isInWishlist = wishlist.includes(product.id);
-          const isRent = product.type === 'rent';
+          const isRent = product.availability === 'rent' || product.availability === 'both';
           return (
             <div key={product.id} onClick={() => onProductClick && onProductClick(product.id)} className="group relative bg-brand-card border border-white/10 rounded-[2rem] overflow-hidden cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 hover:border-white/30">
               <div className={`absolute top-4 right-4 z-30 transition-all duration-300 ${isInWishlist ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'}`}>

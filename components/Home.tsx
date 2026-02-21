@@ -25,7 +25,7 @@ export default function Home({ onNavigate }: HomeProps) {
       price: `₹${p.price.toLocaleString()}`,
       originalPrice: `₹${p.originalPrice.toLocaleString()}`,
       image: p.image,
-      type: p.type
+      availability: p.availability
     }));
 
   const brands = [
@@ -91,7 +91,10 @@ export default function Home({ onNavigate }: HomeProps) {
         <ProductSection
           title="Refurbished Collection"
           products={refurbishedDeals}
-          onProductClick={(id) => onNavigate('product', { id })}
+          onProductClick={(id) => {
+            const p = products.find(prod => prod.id === id);
+            onNavigate('product', { id, type: p?.availability === 'both' ? undefined : p?.availability });
+          }}
           onViewAll={() => onNavigate('listing', { refurbishedOnly: true })}
         />
       )}
@@ -193,7 +196,7 @@ interface ProductCardProps {
 function ProductCard({ product, onNavigate }: ProductCardProps) {
   const { wishlist, toggleWishlist } = useStore();
   const isInWishlist = wishlist.includes(product.id);
-  const isRent = product.type === 'rent';
+  const isRent = product.availability === 'rent' || product.availability === 'both';
 
   return (
     <div className="bg-brand-card border border-white/10 rounded-2xl p-5 hover:border-white/30 transition-all group shadow-xl flex flex-col h-full relative">

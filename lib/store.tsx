@@ -66,7 +66,14 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children?: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const savedUser = sessionStorage.getItem('user_session');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -161,6 +168,15 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     }
   }, [user?.role]);
 
+  // Mirror User to sessionStorage for tab isolation
+  useEffect(() => {
+    if (user) {
+      sessionStorage.setItem('user_session', JSON.stringify(user));
+    } else {
+      sessionStorage.removeItem('user_session');
+    }
+  }, [user]);
+
   // --- PRODUCTS: FIREBASE SYNC & SEEDING ---
   useEffect(() => {
     const productsCol = collection(db, 'products');
@@ -220,11 +236,14 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
           setUser(newUser);
         }
       } else {
+        // Explicitly clear all sensitive data on sign out
         setUser(null);
         setCart([]);
         setOrders([]);
         setTickets([]);
         setWishlist([]);
+        sessionStorage.clear();
+        localStorage.clear();
       }
       setIsDBReady(true);
     });
@@ -488,10 +507,25 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   };
 
   const logout = async () => {
-    await signOut(auth);
-    setUser(null);
-    const event = new CustomEvent('navigate', { detail: { view: 'home' } });
-    window.dispatchEvent(event);
+    try {
+      await signOut(auth);
+      // Clear State
+      setUser(null);
+      setCart([]);
+      setOrders([]);
+      setTickets([]);
+      setWishlist([]);
+      setNotifications([]);
+
+      // Clear Storage
+      localStorage.clear();
+      sessionStorage.clear();
+
+      const event = new CustomEvent('navigate', { detail: { view: 'home' } });
+      window.dispatchEvent(event);
+    } catch (error) {
+      console.error("Logout Error:", error);
+    }
   };
 
   const syncUserField = async (field: string, data: any) => {

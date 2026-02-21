@@ -13,7 +13,7 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
     const [loading, setLoading] = useState(false);
     const [newFeature, setNewFeature] = useState<ProductFeature>({ title: '', description: '', icon: 'star' });
     const [formData, setFormData] = useState<Partial<Product>>(productToEdit || {
-        type: 'rent',
+        availability: 'rent',
         category: undefined,
         brand: undefined,
         condition: 'New',
@@ -72,8 +72,8 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                 [name]: name === 'price' || name === 'originalPrice' || name === 'stock' ? Number(value) : value
             };
 
-            // Reset rental specific fields if switching to buy
-            if (name === 'type' && value === 'buy') {
+            // Reset rental specific fields if switching to buy only
+            if (name === 'availability' && value === 'buy') {
                 updated.rentalOptions = [];
                 updated.deposit = 0;
             }
@@ -81,8 +81,8 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
         });
     };
 
-    const isRentable = formData.type === 'rent' || formData.type === 'rent_and_buy';
-    const isBuyable = formData.type === 'buy' || formData.type === 'rent_and_buy';
+    const isRentable = formData.availability === 'rent' || formData.availability === 'both';
+    const isBuyable = formData.availability === 'buy' || formData.availability === 'both';
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -96,10 +96,10 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
         if (isRentable) {
             if (!formData.price || formData.price <= 0) newErrors.price = "Valid Monthly Rent is required";
         }
-        if (formData.type === 'buy') {
+        if (formData.availability === 'buy') {
             if (!formData.price || formData.price <= 0) newErrors.price = "Valid Selling Price is required";
         }
-        if (formData.type === 'rent_and_buy') {
+        if (formData.availability === 'both') {
             if (!formData.buyPrice || formData.buyPrice <= 0) newErrors.buyPrice = "Valid Selling Price is required";
         }
 
@@ -199,11 +199,11 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                         const key = formData.type === 'rent_and_buy' ? 'buyPrice' : 'price';
                                         if (errors[key]) setErrors({ ...errors, [key]: '' });
                                     }}
-                                    className={`w-full bg-black/40 border ${errors[formData.type === 'rent_and_buy' ? 'buyPrice' : 'price'] ? 'border-red-500' : 'border-brand-border'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm`}
+                                    className={`w-full bg-black/40 border ${errors[formData.availability === 'both' ? 'buyPrice' : 'price'] ? 'border-red-500' : 'border-brand-border'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm`}
                                     placeholder="0.00"
                                 />
-                                {errors.buyPrice && formData.type === 'rent_and_buy' && <p className="text-red-500 text-xs mt-1">{errors.buyPrice}</p>}
-                                {errors.price && formData.type === 'buy' && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
+                                {errors.buyPrice && formData.availability === 'both' && <p className="text-red-500 text-xs mt-1">{errors.buyPrice}</p>}
+                                {errors.price && formData.availability === 'buy' && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
                             </div>
                         )}
 
@@ -222,16 +222,16 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Type</label>
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Availability</label>
                             <select
-                                name="type"
-                                value={formData.type}
+                                name="availability"
+                                value={formData.availability}
                                 onChange={handleChange}
                                 className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
                             >
-                                <option value="rent" style={{ backgroundColor: 'white', color: 'black' }}>Rent</option>
-                                <option value="buy" style={{ backgroundColor: 'white', color: 'black' }}>Buy</option>
-                                <option value="rent_and_buy" style={{ backgroundColor: 'white', color: 'black' }}>Buy & Rent</option>
+                                <option value="rent" style={{ backgroundColor: 'white', color: 'black' }}>Rent Only</option>
+                                <option value="buy" style={{ backgroundColor: 'white', color: 'black' }}>Buy Only</option>
+                                <option value="both" style={{ backgroundColor: 'white', color: 'black' }}>Both (Buy & Rent)</option>
                             </select>
                         </div>
                         <div className="space-y-2">

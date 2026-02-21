@@ -9,6 +9,7 @@ export default function AuthModal() {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   if (!isAuthOpen) return null;
 
@@ -149,14 +150,25 @@ export default function AuthModal() {
                 <div className="flex justify-between items-center ml-1">
                   <label className="block text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Password</label>
                 </div>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-black/40 border border-brand-border rounded-xl px-5 py-4 text-white focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all placeholder:text-gray-700 font-medium"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-black/40 border border-brand-border rounded-xl px-5 py-4 text-white focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all placeholder:text-gray-700 font-medium pr-14"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-primary hover:text-white transition-colors p-2 flex items-center justify-center"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">
+                      {showPassword ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
               </div>
             )}
 

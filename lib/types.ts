@@ -21,7 +21,7 @@ export interface Address {
 export interface CartItem {
     id: string;
     productId: string;
-    type: 'rent' | 'buy';
+    type: 'rent' | 'buy'; // This remains specific to the item in cart
     name: string;
     image: string;
     price: number;

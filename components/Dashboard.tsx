@@ -36,6 +36,7 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
     const [selectedRental, setSelectedRental] = useState<{ orderId: string; item: any } | null>(null);
     const [extensionMonths, setExtensionMonths] = useState(3);
     const [returnReason, setReturnReason] = useState('');
+    const [showCvc, setShowCvc] = useState(false);
 
     // Profile Edit State
     const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
@@ -434,16 +435,16 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
 
                             {user.kycStatus !== 'approved' ? (
                                 <div className={`rounded-2xl border p-8 flex flex-col items-center text-center gap-4 ${user.kycStatus === 'pending'
-                                        ? 'bg-yellow-500/10 border-yellow-500/30'
-                                        : user.kycStatus === 'rejected'
-                                            ? 'bg-red-500/10 border-red-500/30'
-                                            : 'bg-brand-primary/10 border-brand-primary/20'
+                                    ? 'bg-yellow-500/10 border-yellow-500/30'
+                                    : user.kycStatus === 'rejected'
+                                        ? 'bg-red-500/10 border-red-500/30'
+                                        : 'bg-brand-primary/10 border-brand-primary/20'
                                     }`}>
                                     <div className={`w-16 h-16 rounded-full flex items-center justify-center ${user.kycStatus === 'pending'
-                                            ? 'bg-yellow-500 text-black'
-                                            : user.kycStatus === 'rejected'
-                                                ? 'bg-red-500 text-white'
-                                                : 'bg-brand-primary text-white'
+                                        ? 'bg-yellow-500 text-black'
+                                        : user.kycStatus === 'rejected'
+                                            ? 'bg-red-500 text-white'
+                                            : 'bg-brand-primary text-white'
                                         }`}>
                                         <span className="material-symbols-outlined text-3xl">
                                             {user.kycStatus === 'pending' ? 'hourglass_top' : user.kycStatus === 'rejected' ? 'gpp_bad' : 'person_search'}
@@ -1029,14 +1030,25 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                                     </div>
                                     <div>
                                         <label className="text-brand-muted text-sm font-semibold block mb-2">CVC</label>
-                                        <input
-                                            type="password"
-                                            placeholder="***"
-                                            value={cardCvc}
-                                            onChange={(e) => setCardCvc(e.target.value)}
-                                            maxLength={3}
-                                            className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-brand-primary transition-all"
-                                        />
+                                        <div className="relative">
+                                            <input
+                                                type={showCvc ? "text" : "password"}
+                                                placeholder="***"
+                                                value={cardCvc}
+                                                onChange={(e) => setCardCvc(e.target.value)}
+                                                maxLength={3}
+                                                className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-brand-primary transition-all pr-12"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCvc(!showCvc)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-primary hover:text-white transition-colors"
+                                            >
+                                                <span className="material-symbols-outlined text-sm">
+                                                    {showCvc ? 'visibility_off' : 'visibility'}
+                                                </span>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                                 <p className="text-gray-500 text-[10px] italic">Only card ending digits are stored. Actual sensitive data is processed securely.</p>

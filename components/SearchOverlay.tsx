@@ -24,10 +24,10 @@ export default function SearchOverlay({ isOpen, onClose, onNavigate }: SearchOve
   const filteredResults = useMemo(() => {
     const trimmedQuery = query.trim().toLowerCase();
     if (!trimmedQuery) return [];
-    
+
     // Tokenized "Every Word" Search Logic
     const keywords = trimmedQuery.split(/\s+/);
-    
+
     return products.filter(p => {
       // Aggregate searchable fields
       const searchableText = [
@@ -36,7 +36,7 @@ export default function SearchOverlay({ isOpen, onClose, onNavigate }: SearchOve
         p.category,
         p.subtitle,
         p.condition,
-        p.type,
+        p.availability,
         ...(Object.values(p.specs || {})),
       ].join(' ').toLowerCase();
 
@@ -61,7 +61,7 @@ export default function SearchOverlay({ isOpen, onClose, onNavigate }: SearchOve
       } else if (e.key === 'Enter') {
         if (selectedIndex >= 0 && filteredResults[selectedIndex]) {
           e.preventDefault();
-          onNavigate('product', { id: filteredResults[selectedIndex].id });
+          onNavigate('product', { id: filteredResults[selectedIndex].id, type: filteredResults[selectedIndex].availability === 'both' ? undefined : filteredResults[selectedIndex].availability });
         } else if (query.trim()) {
           e.preventDefault();
           onNavigate('listing', { searchQuery: query });
@@ -85,8 +85,8 @@ export default function SearchOverlay({ isOpen, onClose, onNavigate }: SearchOve
   return (
     <div className="fixed inset-0 z-[1000] flex flex-col items-center pt-[15vh] px-4 md:px-8 animate-in fade-in duration-300">
       {/* Background with deep blur */}
-      <div 
-        className="absolute inset-0 bg-black/80 backdrop-blur-3xl" 
+      <div
+        className="absolute inset-0 bg-black/80 backdrop-blur-3xl"
         onClick={onClose}
       />
 
@@ -95,7 +95,7 @@ export default function SearchOverlay({ isOpen, onClose, onNavigate }: SearchOve
         <form onSubmit={handleSearch} className="group relative">
           {/* Integrated Return Button and Search Icon */}
           <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1 z-10">
-            <button 
+            <button
               type="button"
               onClick={onClose}
               className="p-3 text-gray-400 hover:text-white transition-all rounded-full hover:bg-white/5 active:scale-90 flex items-center justify-center"
@@ -106,8 +106,8 @@ export default function SearchOverlay({ isOpen, onClose, onNavigate }: SearchOve
             <div className="w-px h-6 bg-white/10 hidden md:block mx-1"></div>
             <span className="material-symbols-outlined text-gray-500 group-focus-within:text-brand-primary transition-colors hidden md:block">search</span>
           </div>
-          
-          <input 
+
+          <input
             ref={inputRef}
             type="text"
             value={query}
@@ -118,11 +118,11 @@ export default function SearchOverlay({ isOpen, onClose, onNavigate }: SearchOve
             placeholder="Type your mission requirements..."
             className="w-full bg-brand-card/70 border-b-2 border-white/10 p-8 pl-16 md:pl-28 text-xl md:text-2xl text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-primary transition-all rounded-t-3xl shadow-2xl backdrop-blur-md"
           />
-          
+
           <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-3">
-             <button type="submit" className="text-gray-600 hover:text-white transition-colors">
-               <span className="material-symbols-outlined text-3xl">arrow_forward</span>
-             </button>
+            <button type="submit" className="text-gray-600 hover:text-white transition-colors">
+              <span className="material-symbols-outlined text-3xl">arrow_forward</span>
+            </button>
           </div>
         </form>
 
@@ -134,9 +134,9 @@ export default function SearchOverlay({ isOpen, onClose, onNavigate }: SearchOve
               {filteredResults.length > 0 ? (
                 <div className="space-y-2">
                   {filteredResults.map((product, idx) => (
-                    <button 
+                    <button
                       key={product.id}
-                      onClick={() => onNavigate('product', { id: product.id })}
+                      onClick={() => onNavigate('product', { id: product.id, type: product.availability === 'both' ? undefined : product.availability })}
                       onMouseEnter={() => setSelectedIndex(idx)}
                       className={`w-full flex items-center gap-4 p-4 rounded-2xl border border-transparent transition-all text-left group ${selectedIndex === idx ? 'bg-white/10 border-white/20' : 'hover:bg-white/5 hover:border-white/10'}`}
                     >
@@ -149,11 +149,11 @@ export default function SearchOverlay({ isOpen, onClose, onNavigate }: SearchOve
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-black text-white italic">₹{product.price.toLocaleString()}</p>
-                        <p className="text-[8px] text-gray-600 font-black uppercase tracking-widest">{product.type}</p>
+                        <p className="text-[8px] text-gray-600 font-black uppercase tracking-widest">{product.availability}</p>
                       </div>
                     </button>
                   ))}
-                  <button 
+                  <button
                     onClick={handleSearch}
                     className="w-full mt-4 p-4 border border-white/5 rounded-2xl text-[10px] font-black uppercase tracking-[0.4em] text-brand-primary hover:bg-brand-primary hover:text-white transition-all text-center"
                   >
@@ -172,7 +172,7 @@ export default function SearchOverlay({ isOpen, onClose, onNavigate }: SearchOve
               <h4 className="text-[10px] text-gray-500 venus-heading mb-6 text-center">Suggested Searches</h4>
               <div className="flex flex-wrap justify-center gap-3">
                 {['MacBook Pro', 'Gaming PC', 'Monitors', 'Refurbished', 'Workstation'].map((s) => (
-                  <button 
+                  <button
                     key={s}
                     onClick={() => {
                       setQuery(s);

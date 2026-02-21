@@ -5,7 +5,7 @@ import QuickViewModal from "./QuickViewModal";
 
 interface BrandListingProps {
     brand: string;
-    onProductClick: (id: string) => void;
+    onProductClick: (id: string, type?: 'rent' | 'buy') => void;
     onBack: () => void;
 }
 
@@ -143,7 +143,7 @@ export default function BrandListing({ brand, onProductClick, onBack }: BrandLis
                             return (
                                 <div
                                     key={product.id}
-                                    onClick={() => onProductClick(product.id)}
+                                    onClick={() => onProductClick(product.id, product.availability === 'both' ? undefined : product.availability)}
                                     className="group relative bg-brand-card border border-white/5 rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden cursor-pointer transition-all duration-500 hover:border-brand-primary/40 hover:-translate-y-2 flex flex-col h-full"
                                 >
                                     <div className="absolute top-4 left-4 md:top-6 md:left-6 z-30">

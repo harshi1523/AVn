@@ -68,7 +68,7 @@ export default function AdminDashboard() {
     if (!searchTerm) return true;
     const query = searchTerm.toLowerCase();
     const keywords = query.split(/\s+/);
-    const searchableText = `${p.name} ${p.id} ${p.brand} ${p.category || ''} ${p.type || ''}`.toLowerCase();
+    const searchableText = `${p.name} ${p.id} ${p.brand} ${p.category || ''} ${p.availability || ''}`.toLowerCase();
     return keywords.every(kw => searchableText.includes(kw));
   });
 
