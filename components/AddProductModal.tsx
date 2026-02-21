@@ -69,7 +69,7 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
         setFormData(prev => {
             const updated = {
                 ...prev,
-                [name]: name === 'price' || name === 'originalPrice' ? Number(value) : value
+                [name]: name === 'price' || name === 'originalPrice' || name === 'stock' ? Number(value) : value
             };
 
             // Reset rental specific fields if switching to buy
@@ -305,6 +305,18 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                 <option value="Refurbished" style={{ backgroundColor: 'white', color: 'black' }}>Refurbished</option>
                                 <option value="Open Box" style={{ backgroundColor: 'white', color: 'black' }}>Open Box</option>
                             </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Stock Quantity</label>
+                            <input
+                                type="number"
+                                name="stock"
+                                value={(formData as any).stock ?? ''}
+                                onChange={handleChange}
+                                min={0}
+                                className="w-full bg-black/40 border border-brand-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
+                                placeholder="0"
+                            />
                         </div>
                     </div>
 
@@ -580,8 +592,8 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }
 

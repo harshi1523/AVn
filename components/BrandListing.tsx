@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { products, Product } from "../lib/mockData";
+import { Product } from "../lib/mockData";
 import { useStore } from "../lib/store";
 import QuickViewModal from "./QuickViewModal";
 
@@ -53,7 +53,7 @@ const getUnsplashResponsiveUrl = (url: string, width: number, quality: number = 
 };
 
 export default function BrandListing({ brand, onProductClick, onBack }: BrandListingProps) {
-    const { wishlist, toggleWishlist, addToCart } = useStore();
+    const { wishlist, toggleWishlist, addToCart, products } = useStore();
     const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -63,7 +63,12 @@ export default function BrandListing({ brand, onProductClick, onBack }: BrandLis
         return () => clearTimeout(timer);
     }, [brand]);
 
-    const displayProducts = products.filter(p => p.brand.toLowerCase() === brand.toLowerCase());
+    const brandLower = brand.toLowerCase();
+    const displayProducts = products.filter(p => {
+        const byBrandField = p.brand?.toLowerCase() === brandLower;
+        const byNamePrefix = !p.brand && p.name?.toLowerCase().startsWith(brandLower);
+        return byBrandField || byNamePrefix;
+    });
     const metadata = BRAND_METADATA[brand] || {
         logo: '',
         banner: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop',

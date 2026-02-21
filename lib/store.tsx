@@ -419,24 +419,30 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
   const addProduct = async (productData: Omit<Product, 'id'>) => {
     try {
-      // Create a reference with an auto-generated ID, or generate one locally
       const newId = Math.random().toString(36).substr(2, 9);
-      // Better to let Firestore generate ID or use the one we made.
-      // Let's use the random one for consistency with the type Omit<Product, 'id'>
       const newProduct: Product = { ...productData, id: newId };
+      // Optimistic update: show product immediately without waiting for onSnapshot
+      setProducts(prev => [...prev, newProduct]);
       await setDoc(doc(db, 'products', newId), newProduct);
     } catch (error) {
       console.error("Error adding product:", error);
+      // Rollback optimistic update on failure
+      setProducts(prev => prev.filter(p => p.id !== (productData as any).id));
       throw error;
     }
   };
 
   const updateProduct = async (product: Product) => {
+    // Optimistic update: update immediately, Firestore confirms in background
+    const prevProducts = products;
+    setProducts(prev => prev.map(p => p.id === product.id ? product : p));
     try {
       const productRef = doc(db, 'products', product.id);
       await updateDoc(productRef, { ...product });
     } catch (error) {
       console.error("Error updating product:", error);
+      // Rollback optimistic update on failure
+      setProducts(prevProducts);
       throw error;
     }
   };

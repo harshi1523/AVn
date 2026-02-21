@@ -45,6 +45,7 @@ export interface Product {
   rentalOptions?: RentalOption[];
   condition?: 'New' | 'Refurbished' | 'Open Box';
   status?: 'AVAILABLE' | 'LOW STOCK' | 'RENTED' | 'OUT_OF_STOCK';
+  stock?: number;
   grade?: string;
   buyPrice?: number;
   isTrending?: boolean;
