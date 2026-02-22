@@ -22,7 +22,8 @@ export default function ProductDetails({ productId, onBack }: ProductDetailsProp
 
   if (!product) return <div className="p-20 text-center text-white/20 font-display text-xl uppercase tracking-widest">Product Not Found</div>;
 
-  const [purchaseMode, setPurchaseMode] = useState<'rent' | 'buy'>(product.type || 'buy');
+  const defaultMode: 'rent' | 'buy' = product.type === 'buy' ? 'buy' : 'rent';
+  const [purchaseMode, setPurchaseMode] = useState<'rent' | 'buy'>(defaultMode);
   const [selectedTenure, setSelectedTenure] = useState(product.rentalOptions?.[0]?.months || 12);
 
   const isModeRent = purchaseMode === 'rent';
@@ -154,14 +155,30 @@ export default function ProductDetails({ productId, onBack }: ProductDetailsProp
           <div className="space-y-8">
             <div>
               <h3 className="venus-heading">Ownership Protocol</h3>
-              <div className="flex gap-3 mb-10">
-                <button onClick={() => setPurchaseMode('buy')} className={`flex-1 p-4 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${purchaseMode === 'buy' ? 'bg-white text-black border-white' : 'bg-white/5 border-white/5 text-white/20'}`}>
-                  <span className="text-[18px] font-bold">Buy Outright</span>
-                </button>
-                <button onClick={() => setPurchaseMode('rent')} className={`flex-1 p-4 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${purchaseMode === 'rent' ? 'bg-white text-black border-white' : 'bg-white/5 border-white/5 text-white/20'}`}>
-                  <span className="text-[18px] font-bold">Monthly Rental</span>
-                </button>
-              </div>
+              {product.type === 'rent_and_buy' && (
+                <div className="flex gap-3 mb-10">
+                  <button onClick={() => setPurchaseMode('buy')} className={`flex-1 p-4 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${purchaseMode === 'buy' ? 'bg-white text-black border-white' : 'bg-white/5 border-white/5 text-white/20'}`}>
+                    <span className="text-[18px] font-bold">Buy Outright</span>
+                  </button>
+                  <button onClick={() => setPurchaseMode('rent')} className={`flex-1 p-4 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${purchaseMode === 'rent' ? 'bg-white text-black border-white' : 'bg-white/5 border-white/5 text-white/20'}`}>
+                    <span className="text-[18px] font-bold">Monthly Rental</span>
+                  </button>
+                </div>
+              )}
+              {product.type === 'buy' && (
+                <div className="mb-10">
+                  <div className="p-4 rounded-xl border bg-white text-black border-white inline-flex items-center gap-2">
+                    <span className="text-[18px] font-bold">Buy Outright</span>
+                  </div>
+                </div>
+              )}
+              {product.type === 'rent' && (
+                <div className="mb-10">
+                  <div className="p-4 rounded-xl border bg-white text-black border-white inline-flex items-center gap-2">
+                    <span className="text-[18px] font-bold">Monthly Rental</span>
+                  </div>
+                </div>
+              )}
 
               {purchaseMode === 'rent' ? (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
