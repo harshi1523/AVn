@@ -21,7 +21,7 @@ export interface Address {
 export interface CartItem {
     id: string;
     productId: string;
-    type: 'rent' | 'buy';
+    type: 'rent' | 'buy'; // This remains specific to the item in cart
     name: string;
     image: string;
     price: number;
@@ -118,7 +118,14 @@ export interface User {
     orders?: Order[];
     tickets?: Ticket[];
     kycStatus?: 'pending' | 'approved' | 'rejected' | 'reupload_required' | 'not_submitted';
-    kycDocuments?: { front: string; back: string; type: string };
+    kycDocuments?: {
+        front: string;
+        back: string;
+        type: string;
+        agreementUrl?: string; // Path to PDF in storage
+        agreementDate?: string;
+        agreementAccepted?: boolean;
+    };
     kycVerifiedDate?: string;
     kycVerifiedBy?: string;
     kycSubmissionDate?: string;

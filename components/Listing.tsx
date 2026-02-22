@@ -10,12 +10,12 @@ interface ListingProps {
     searchQuery?: string;
     favoritesOnly?: boolean;
     refurbishedOnly?: boolean;
-    onProductClick: (id: string) => void;
+    onProductClick: (id: string, type?: 'rent' | 'buy') => void;
     onCategoryChange?: (category: string) => void;
 }
 
 export default function Listing({ category = 'All', type, searchQuery, favoritesOnly, refurbishedOnly, onProductClick, onCategoryChange }: ListingProps) {
-    const { wishlist, toggleWishlist, addToCart, products } = useStore();
+    const { wishlist, toggleWishlist, addToCart, visibleProducts: products } = useStore();
     const [isLoading, setIsLoading] = useState(true);
     const [localSearch, setLocalSearch] = useState("");
     const [selectedType, setSelectedType] = useState<'rent' | 'buy' | 'all'>(type || 'all');
@@ -42,7 +42,7 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
             if (query) {
                 const keywords = query.split(/\s+/);
                 results = results.filter(p => {
-                    const searchableText = `${p.name} ${p.brand} ${p.category} ${p.subtitle} ${p.condition}`.toLowerCase();
+                    const searchableText = `${p.name} ${p.brand} ${p.category} ${p.subtitle} ${p.condition} ${p.availability}`.toLowerCase();
                     return keywords.every(kw => searchableText.includes(kw));
                 });
             }
@@ -50,7 +50,11 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                 results = results.filter(p => p.category === category);
             }
             if (selectedType !== 'all') {
-                results = results.filter(p => p.type === selectedType);
+                results = results.filter(p =>
+                    selectedType === 'rent'
+                        ? (p.availability === 'rent' || p.availability === 'both')
+                        : (p.availability === 'buy' || p.availability === 'both')
+                );
             }
             if (selectedBrands.length > 0) {
                 results = results.filter(p => selectedBrands.includes(p.brand));

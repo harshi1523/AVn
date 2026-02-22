@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Product } from './mockData';
+import { products as initialProducts, Product } from './mockData';
 import { createAndUploadInvoice } from './invoice';
 import { GoogleGenAI } from "@google/genai";
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, updateProfile as updateAuthProfile, updateEmail, sendPasswordResetEmail } from "firebase/auth";
-import { doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, collection, deleteDoc, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, collection, deleteDoc, getDocs, query, where } from "firebase/firestore";
 import { getStorage, ref, deleteObject } from "firebase/storage";
 import { Notification, Address, CartItem, Order, Ticket, User, FinanceStats } from './types';
 
@@ -21,11 +21,13 @@ interface StoreContextType {
   wishlist: string[];
   allUsers: User[];
   finance: FinanceStats;
-  products: Product[];
+  products: Product[]; // All products (filtered by query)
+  visibleProducts: Product[]; // Sanitized products for display
   notifications: Notification[];
   isCartOpen: boolean;
   isAuthOpen: boolean;
   isDBReady: boolean;
+  isProductsReady: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; message: string; role?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; message: string; role?: string; isNewUser?: boolean }>;
   signup: (name: string, email: string, password: string) => Promise<{ success: boolean; message: string }>;
@@ -34,7 +36,7 @@ interface StoreContextType {
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   logout: () => Promise<void>;
-  addToCart: (productId: string, type: 'rent' | 'buy', tenure?: number, variants?: CartItem['variants'], warranty?: CartItem['warranty']) => void;
+  addToCart: (productId: string, type: 'rent' | 'buy', tenure?: number, variants?: CartItem['variants'], warranty?: CartItem['warranty']) => Promise<void>;
   updateQuantity: (cartItemId: string, delta: number) => void;
   updateTenure: (cartItemId: string, newTenure: number) => Promise<void>;
   removeFromCart: (cartItemId: string) => void;
@@ -65,14 +67,22 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children?: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const savedUser = sessionStorage.getItem('user_session');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [products, setProducts] = useState<Product[]>(initialProducts);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [isDBReady, setIsDBReady] = useState(false);
+  const [isProductsReady, setIsProductsReady] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
@@ -139,7 +149,17 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       console.log("Admin User detected. Fetching all users...");
       const usersCol = collection(db, 'users');
       const unsubscribe = onSnapshot(usersCol, (snapshot) => {
-        const usersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+        const dedupeOrders = (rawOrders: any[]) => {
+          if (!Array.isArray(rawOrders)) return [];
+          return Object.values(
+            rawOrders.reduce((acc: Record<string, any>, o: any) => { acc[o.id] = o; return acc; }, {})
+          );
+        };
+        const usersList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          orders: dedupeOrders((doc.data() as any).orders)
+        } as User));
         console.log("Fetched users:", usersList.length);
         setAllUsers(usersList);
       });
@@ -149,23 +169,79 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     }
   }, [user?.role]);
 
+  // Mirror User to sessionStorage for tab isolation
+  useEffect(() => {
+    if (user) {
+      sessionStorage.setItem('user_session', JSON.stringify(user));
+    } else {
+      sessionStorage.removeItem('user_session');
+    }
+  }, [user]);
+
   // --- PRODUCTS: FIREBASE SYNC & SEEDING ---
   useEffect(() => {
+    // Determine query based on role
+    // Admin gets all products, Guest/User gets only public ones
     const productsCol = collection(db, 'products');
+    // FOR GUESTS: We MUST use a filtered query to match Firestore security rules.
+    // If a product is missing 'isPublic', it will NOT show up for guests until fixed by an admin.
+    const productsQuery = user?.role === 'admin'
+      ? productsCol
+      : query(productsCol, where('isPublic', '==', true));
 
-    // 1. Setup Realtime Listener
-    const unsubscribe = onSnapshot(productsCol, (snapshot) => {
-      const liveProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
-      setProducts(liveProducts);
+    const unsubscribe = onSnapshot(productsQuery, async (snapshot) => {
+      let liveProducts = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // Default to true for legacy data so products don't disappear
+          isPublic: data.isPublic !== undefined ? data.isPublic : true
+        } as Product;
+      });
+
+      // Guest visibility: also filter out-of-stock items
+      if (user?.role !== 'admin') {
+        liveProducts = liveProducts.filter(p => p.status !== 'OUT_OF_STOCK');
+      }
+
+      if (liveProducts.length === 0 && initialProducts.length > 0 && user?.role === 'admin') {
+        // Seeding initial data - ONLY if admin and no products found
+        console.log("Seeding initial products to Firestore...");
+        try {
+          await Promise.all(initialProducts.map(p => setDoc(doc(db, 'products', p.id), p)));
+          console.log("Seeding complete.");
+        } catch (err) {
+          console.error("Error seeding products:", err);
+          setProducts([]);
+          setIsProductsReady(true);
+        }
+      } else {
+        setProducts(liveProducts);
+        setIsProductsReady(true);
+      }
+
+      // Self-healing: Update products missing isPublic field if admin
+      if (user?.role === 'admin') {
+        const legacyDocs = snapshot.docs.filter(doc => doc.data().isPublic === undefined);
+        if (legacyDocs.length > 0) {
+          console.log(`Updating ${legacyDocs.length} legacy products with default visibility...`);
+          legacyDocs.forEach(async (legacyDoc) => {
+            try {
+              await updateDoc(doc(db, 'products', legacyDoc.id), { isPublic: true });
+            } catch (err) {
+              console.error("Error healing legacy product:", err);
+            }
+          });
+        }
+      }
     }, (error) => {
       console.error("Error fetching products:", error);
+      setIsProductsReady(true);
     });
 
-    // 2. Initial Seeding Check (REMOVED)
-    // const checkAndSeed = async () => { ... }
-
     return () => unsubscribe();
-  }, []);
+  }, [user?.role]);
 
   // --- FIREBASE AUTH LISTENER ---
   useEffect(() => {
@@ -206,11 +282,14 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
           setUser(newUser);
         }
       } else {
+        // Explicitly clear all sensitive data on sign out
         setUser(null);
         setCart([]);
         setOrders([]);
         setTickets([]);
         setWishlist([]);
+        sessionStorage.clear();
+        localStorage.clear();
       }
       setIsDBReady(true);
     });
@@ -230,7 +309,12 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
         // console.log("🔥 Fetched Cart from DB:", data.cart?.length || 0);
 
         setCart(data.cart || []);
-        setOrders(data.orders || []);
+        const rawOrders: Order[] = data.orders || [];
+        const uniqueOrders = Object.values(
+          rawOrders.reduce((acc: Record<string, Order>, o: Order) => { acc[o.id] = o; return acc; }, {})
+        ) as Order[];
+        setOrders(uniqueOrders);
+
         setTickets(data.tickets || []);
         setWishlist(data.wishlist || []);
         // Keep the local user state up to date with firestore (addresses, profile, etc.)
@@ -248,13 +332,17 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   }, [user?.id]);
 
   const generateAIEmail = async (order: Order, type: 'new' | 'update') => {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) return;
+    const apiKey = import.meta.env.VITE_GOOGLE_AI_KEY;
+    if (!apiKey) {
+      console.warn("VITE_GOOGLE_AI_KEY is missing. AI email generation skipped.");
+      return;
+    }
     try {
       const ai = new GoogleGenAI({ apiKey });
       const prompt = `Draft a friendly, professional email notification for a technology platform named 'SB Tech Solution'. Event: ${type === 'new' ? 'Order Placed' : 'Order Status Changed to ' + order.status}. User: ${order.userName}. Order ID: ${order.id}. Order Items: ${order.items.map(i => `${i.name} (x${i.quantity})`).join(', ')}. Tone: Courteous, helpful, and clear. Avoid complex tech jargon.`;
+
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-1.5-flash',
         contents: prompt,
       });
       const emailText = response.text || "Your order update has been processed.";
@@ -396,24 +484,30 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
   const addProduct = async (productData: Omit<Product, 'id'>) => {
     try {
-      // Create a reference with an auto-generated ID, or generate one locally
       const newId = Math.random().toString(36).substr(2, 9);
-      // Better to let Firestore generate ID or use the one we made.
-      // Let's use the random one for consistency with the type Omit<Product, 'id'>
       const newProduct: Product = { ...productData, id: newId };
+      // Optimistic update: show product immediately without waiting for onSnapshot
+      setProducts(prev => [...prev, newProduct]);
       await setDoc(doc(db, 'products', newId), newProduct);
     } catch (error) {
       console.error("Error adding product:", error);
+      // Rollback optimistic update on failure
+      setProducts(prev => prev.filter(p => p.id !== (productData as any).id));
       throw error;
     }
   };
 
   const updateProduct = async (product: Product) => {
+    // Optimistic update: update immediately, Firestore confirms in background
+    const prevProducts = products;
+    setProducts(prev => prev.map(p => p.id === product.id ? product : p));
     try {
       const productRef = doc(db, 'products', product.id);
       await updateDoc(productRef, { ...product });
     } catch (error) {
       console.error("Error updating product:", error);
+      // Rollback optimistic update on failure
+      setProducts(prevProducts);
       throw error;
     }
   };
@@ -459,20 +553,60 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   };
 
   const logout = async () => {
-    await signOut(auth);
-    setUser(null);
-    const event = new CustomEvent('navigate', { detail: { view: 'home' } });
-    window.dispatchEvent(event);
+    try {
+      await signOut(auth);
+      // Clear State
+      setUser(null);
+      setCart([]);
+      setOrders([]);
+      setTickets([]);
+      setWishlist([]);
+      setNotifications([]);
+
+      // Clear Storage
+      localStorage.clear();
+      sessionStorage.clear();
+
+      const event = new CustomEvent('navigate', { detail: { view: 'home' } });
+      window.dispatchEvent(event);
+    } catch (error) {
+      console.error("Logout Error:", error);
+    }
   };
 
   const syncUserField = async (field: string, data: any) => {
     if (!user) return;
     const userDocRef = doc(db, 'users', user.id);
-    await updateDoc(userDocRef, { [field]: data });
+    const sanitized = JSON.parse(JSON.stringify(data ?? null)); // strips undefined values
+    await updateDoc(userDocRef, { [field]: sanitized });
   };
+
+  // --- RENTAL BUSINESS RULES ---
+  const MAX_RENTAL_MONTHS = 3;
+  const MAX_ACTIVE_RENTALS = 3;
+
+  const getActiveRentalCount = () =>
+    orders.filter(o =>
+      o.items.some(i => i.type === 'rent') &&
+      !['Delivered', 'Returned', 'Cancelled'].includes(o.status)
+    ).length;
 
   const addToCart = async (productId: string, type: 'rent' | 'buy', tenure?: number, variants?: CartItem['variants'], warranty?: CartItem['warranty']) => {
     if (!user) { setIsAuthOpen(true); return; }
+
+    // --- RENTAL BUSINESS RULE CHECKS ---
+    if (type === 'rent') {
+      if (user.kycStatus !== 'approved') {
+        throw new Error('KYC_NOT_APPROVED');
+      }
+      if (tenure && tenure > MAX_RENTAL_MONTHS) {
+        throw new Error('TENURE_EXCEEDED');
+      }
+      if (getActiveRentalCount() >= MAX_ACTIVE_RENTALS) {
+        throw new Error('MAX_RENTALS_REACHED');
+      }
+    }
+
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
@@ -536,9 +670,18 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
   const placeOrder = async (address: string, paymentMethod: string, totalOverride?: number, rentalDetails?: { start?: string, end?: string, deposit?: number, method?: 'pickup' | 'delivery' }) => {
     if (!user) return;
+
+    // --- RENTAL BUSINESS RULE RE-VALIDATION (safety net) ---
+    const rentalItems = cart.filter(i => i.type === 'rent');
+    if (rentalItems.length > 0) {
+      if (user.kycStatus !== 'approved') throw new Error('KYC_NOT_APPROVED');
+      if (getActiveRentalCount() >= MAX_ACTIVE_RENTALS) throw new Error('MAX_RENTALS_REACHED');
+      if (rentalItems.some(i => i.tenure && i.tenure > MAX_RENTAL_MONTHS)) throw new Error('TENURE_EXCEEDED');
+    }
+
     const finalTotal = totalOverride || cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     const newOrder: Order = {
-      id: `ORD-${Math.floor(Math.random() * 10000)}`,
+      id: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
       date: new Date().toISOString().split('T')[0],
       userId: user.id,
       userName: user.name,
@@ -601,7 +744,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
         console.error("❌ Error creating financial record:", err);
       }
 
-      setOrders(prev => [sanitizedOrder, ...prev]);
+      // Note: onSnapshot will fire and update orders state with deduplication
       setCart([]);
 
       // Update user state optimistically to ensure user.orders is in sync
@@ -986,7 +1129,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
           const no = targetUser.pendingCheckout;
           const newOrder: Order = {
-            id: `ORD-${Math.floor(Math.random() * 10000)}`,
+            id: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
             date: new Date().toISOString().split('T')[0],
             userId: targetUser.id,
             userName: targetUser.name,
@@ -1147,9 +1290,35 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
   const dismissNotification = (id: string) => { setNotifications(prev => prev.filter(n => n.id !== id)); };
 
+  // --- VISIBILITY LAYER: SANITIZED VIEW ---
+  const visibleProducts = React.useMemo(() => {
+    if (user?.role === 'admin') return products;
+
+    // Sanitized View for non-admins: filter isPublic and strip sensitive fields
+    return products
+      .filter(p => p.isPublic && p.status !== 'OUT_OF_STOCK')
+      .map(p => {
+        const { costPrice, internalNotes, ...sanitizedProduct } = p as any;
+        return sanitizedProduct as Product;
+      });
+  }, [products, user?.role]);
+
+  // --- VALIDATION SCRIPT (As requested in Master Fix) ---
+  useEffect(() => {
+    if (isProductsReady) {
+      console.log(`[Verification] User Role: ${user?.role || 'Guest'}`);
+      console.log(`[Verification] Full Inventory Count: ${products.length}`);
+      console.log(`[Verification] Sanitized Catalog Count: ${visibleProducts.length}`);
+
+      if (user?.role !== 'admin' && products.length > visibleProducts.length) {
+        console.log(`[Verification] SUCCESS: Guest view is correctly filtered.`);
+      }
+    }
+  }, [isProductsReady, products.length, visibleProducts.length, user?.role]);
+
   return (
     <StoreContext.Provider value={{
-      user, setUser, cart, orders, tickets, wishlist, allUsers, finance, products, notifications, isCartOpen, isAuthOpen, isDBReady,
+      user, setUser, cart, orders, tickets, wishlist, allUsers, finance, products, visibleProducts, notifications, isCartOpen, isAuthOpen, isDBReady, isProductsReady,
       login, loginWithGoogle, signup, logout, resetPassword, addProduct, updateProduct, deleteProduct, addToCart, updateQuantity, removeFromCart, placeOrder, addTicket, addTicketMessage, updateTicketPriority, assignTicket, toggleWishlist,
       toggleCart: setIsCartOpen, toggleAuth: setIsAuthOpen, updateOrderStatus, updateTicketStatus, updateKYCStatus, updateUserStatus, dismissNotification,
       addAddress, updateAddress, setDefaultAddress, removeAddress, updateRentalPreferences, savePendingCheckout, refreshProfile, updateProfile, updateEmailAddress

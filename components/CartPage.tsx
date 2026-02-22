@@ -6,7 +6,7 @@ interface CartPageProps {
 }
 
 export default function CartPage({ onNavigate }: CartPageProps) {
-  const { cart, removeFromCart, updateQuantity } = useStore();
+  const { cart, removeFromCart, updateQuantity, updateTenure } = useStore();
 
   const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   const deposit = cart.filter(item => item.type === 'rent').reduce((acc, item) => acc + (5000 * item.quantity), 0);
@@ -72,7 +72,7 @@ export default function CartPage({ onNavigate }: CartPageProps) {
                           <div className="relative group/tenure">
                             <select
                               value={item.tenure}
-                              onChange={(e) => useStore.getState().updateTenure(item.id, parseInt(e.target.value))}
+                              onChange={(e) => updateTenure(item.id, parseInt(e.target.value))}
                               className="appearance-none bg-white/5 border border-white/10 rounded-lg px-3 py-0.5 pr-8 text-[10px] font-black text-white uppercase tracking-widest hover:border-brand-primary/40 transition-all cursor-pointer focus:outline-none"
                             >
                               {[3, 6, 12, 18, 24].map(m => (

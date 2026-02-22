@@ -9,7 +9,7 @@ import { generateInvoice } from "../lib/invoice";
 export default function AdminDashboard() {
   const { user, finance, orders, tickets, allUsers, products: allProducts, logout, updateOrderStatus, updateTicketStatus, updateKYCStatus, deleteProduct, updateOrderNotes, updateUserStatus, addTicketMessage, updateTicketPriority, assignTicket } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'orders' | 'users' | 'financials' | 'reports' | 'settings' | 'support'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'orders' | 'users' | 'financials' | 'support'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -47,13 +47,13 @@ export default function AdminDashboard() {
 
   // 1. Determine Date Range
   const getDateRangeStart = () => {
+    if (dateRange === 'custom') return customStart ? new Date(customStart) : new Date(0);
     const now = new Date();
-    if (dateRange === 'custom') return customStart ? new Date(customStart) : new Date(0); // Default to epoch if invalid
-    if (dateRange === '7d') return new Date(now.setDate(now.getDate() - 7));
-    if (dateRange === '30d') return new Date(now.setDate(now.getDate() - 30));
-    if (dateRange === '3m') return new Date(now.setMonth(now.getMonth() - 3));
-    if (dateRange === '6m') return new Date(now.setMonth(now.getMonth() - 6));
-    if (dateRange === '12m') return new Date(now.setFullYear(now.getFullYear() - 1));
+    if (dateRange === '7d') { const d = new Date(now); d.setDate(d.getDate() - 7); return d; }
+    if (dateRange === '30d') { const d = new Date(now); d.setDate(d.getDate() - 30); return d; }
+    if (dateRange === '3m') { const d = new Date(now); d.setMonth(d.getMonth() - 3); return d; }
+    if (dateRange === '6m') { const d = new Date(now); d.setMonth(d.getMonth() - 6); return d; }
+    if (dateRange === '12m') { const d = new Date(now); d.setFullYear(d.getFullYear() - 1); return d; }
     return new Date(0);
   };
 
@@ -68,7 +68,7 @@ export default function AdminDashboard() {
     if (!searchTerm) return true;
     const query = searchTerm.toLowerCase();
     const keywords = query.split(/\s+/);
-    const searchableText = `${p.name} ${p.id} ${p.brand} ${p.category || ''} ${p.type || ''}`.toLowerCase();
+    const searchableText = `${p.name} ${p.id} ${p.brand} ${p.category || ''} ${p.availability || ''}`.toLowerCase();
     return keywords.every(kw => searchableText.includes(kw));
   });
 
@@ -196,9 +196,7 @@ export default function AdminDashboard() {
                 { id: 'orders', label: 'Orders', icon: 'local_shipping' },
                 { id: 'financials', label: 'Financials', icon: 'payments' },
                 { id: 'users', label: 'Users & KYC', icon: 'group' },
-                { id: 'support', label: 'Support Tickets', icon: 'confirmation_number' },
-                { id: 'reports', label: 'Reports', icon: 'analytics' },
-                { id: 'settings', label: 'Settings', icon: 'settings' }
+                { id: 'support', label: 'Support Tickets', icon: 'confirmation_number' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -225,7 +223,7 @@ export default function AdminDashboard() {
               AvN {activeTab}
             </h1>
 
-            {activeTab === 'overview' && (
+            {(activeTab === 'overview' || activeTab === 'financials') && (
               <div className="flex flex-wrap items-center gap-4">
                 {dateRange === 'custom' && (
                   <div className="flex items-center gap-2 bg-black/40 border border-brand-border rounded-xl px-2">
@@ -821,11 +819,17 @@ export default function AdminDashboard() {
                           p.status === 'RENTED' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
                             'bg-red-500/10 text-red-500 border-red-500/20'
                           }`}>{p.status || 'AVAILABLE'}</span>
-                        {p.deposit && (
+                        <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase bg-white/5 text-gray-400 border border-white/10">
+                          Qty: {p.stock ?? 0}
+                        </span>
+                        {!!p.deposit && (
                           <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase bg-white/5 text-gray-400 border border-white/10">
                             Dep: ₹{p.deposit.toLocaleString()}
                           </span>
                         )}
+                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${p.isPublic ? 'bg-brand-primary/10 text-brand-primary border-brand-primary/20' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'}`}>
+                          {p.isPublic ? 'Public' : 'Hidden'}
+                        </span>
                       </div>
                       <div className="flex gap-4 mt-6">
                         <button onClick={() => { setEditingProduct(p); setIsAddProductOpen(true); }} className="flex-1 bg-white/5 hover:bg-white/10 py-4 lg:py-3 rounded-xl text-[9px] font-black uppercase text-gray-400 hover:text-white transition-all cursor-pointer min-h-[44px] flex items-center justify-center">Edit</button>
@@ -857,15 +861,6 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {activeTab === 'financials' && (
-            <div className="bg-brand-card border border-brand-border rounded-[2.5rem] p-10 flex items-center justify-center min-h-[400px]">
-              <div className="text-center">
-                <span className="material-symbols-outlined text-6xl text-white/10 mb-4">payments</span>
-                <h3 className="text-xl font-bold text-white mb-2">Financial Management</h3>
-                <p className="text-gray-500 text-sm">Payments, Invoices, and Refunds module coming soon.</p>
-              </div>
-            </div>
-          )}
 
           {activeTab === 'financials' && (
             <div className="space-y-8">
@@ -1159,15 +1154,224 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {activeTab === 'reports' && (
-            <div className="bg-brand-card border border-brand-border rounded-[2.5rem] p-10 flex items-center justify-center min-h-[400px]">
-              <div className="text-center">
-                <span className="material-symbols-outlined text-6xl text-white/10 mb-4">analytics</span>
-                <h3 className="text-xl font-bold text-white mb-2">Analytics & Reports</h3>
-                <p className="text-gray-500 text-sm">Detailed revenue and usage reports module coming soon.</p>
+          {activeTab === 'financials' && (() => {
+            // ── Date & order data already computed above (startDate, endDate, filteredOrders) ──
+            const finOrders = allOrders.filter(o => {
+              const d = new Date(o.date);
+              return d >= startDate && d <= endDate;
+            });
+
+            const rentalOrders = finOrders.filter(o => o.items.some(i => i.type === 'rent'));
+            const purchaseOrders = finOrders.filter(o => o.items.every(i => i.type === 'buy'));
+
+            const totalRev = finOrders.reduce((s, o) => s + (o.total || 0), 0);
+            const rentalRev = rentalOrders.reduce((s, o) => s + (o.total || 0), 0);
+            const purchaseRev = purchaseOrders.reduce((s, o) => s + (o.total || 0), 0);
+            const avgOrder = finOrders.length > 0 ? totalRev / finOrders.length : 0;
+
+            // ── Revenue chart (same bucket logic as overview) ──
+            const dayDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24));
+            const isDaily = dayDiff <= 31;
+            const chartBuckets: { label: string; date: Date; rental: number; purchase: number }[] = [];
+
+            if (isDaily) {
+              for (let i = 0; i < dayDiff; i++) {
+                const d = new Date(startDate); d.setDate(d.getDate() + i);
+                chartBuckets.push({ date: d, label: `${d.getDate()}/${d.getMonth() + 1}`, rental: 0, purchase: 0 });
+              }
+            } else {
+              const monthDiff = (endDate.getFullYear() - startDate.getFullYear()) * 12 + (endDate.getMonth() - startDate.getMonth()) + 1;
+              for (let i = 0; i < monthDiff; i++) {
+                const d = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
+                chartBuckets.push({ date: d, label: d.toLocaleString('default', { month: 'short' }), rental: 0, purchase: 0 });
+              }
+            }
+
+            finOrders.forEach(order => {
+              const od = new Date(order.date);
+              const bucket = chartBuckets.find(b =>
+                isDaily
+                  ? b.date.getDate() === od.getDate() && b.date.getMonth() === od.getMonth() && b.date.getFullYear() === od.getFullYear()
+                  : b.date.getMonth() === od.getMonth() && b.date.getFullYear() === od.getFullYear()
+              );
+              if (bucket) {
+                if (order.items.some(i => i.type === 'rent')) bucket.rental += order.total || 0;
+                else bucket.purchase += order.total || 0;
+              }
+            });
+
+            const maxBucket = Math.max(...chartBuckets.map(b => b.rental + b.purchase), 1000);
+
+            // ── CSV export ──
+            const exportCSV = () => {
+              const header = ['Date', 'Order ID', 'Customer', 'Email', 'Type', 'Amount (₹)', 'Payment Method', 'Status'];
+              const rows = finOrders.map(o => [
+                o.date,
+                o.id,
+                o.userName || '',
+                o.userEmail || '',
+                o.items.some(i => i.type === 'rent') ? 'Rental' : 'Purchase',
+                o.total,
+                o.paymentMethod || 'N/A',
+                o.status
+              ]);
+              const csv = [header, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+              const blob = new Blob([csv], { type: 'text/csv' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url;
+              a.download = `financials_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`;
+              a.click(); URL.revokeObjectURL(url);
+            };
+
+            return (
+              <div className="space-y-8">
+                {/* ── KPI Cards ── */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {[
+                    { label: 'Total Revenue', value: `₹${totalRev.toLocaleString('en-IN')}`, icon: 'payments', color: 'text-brand-primary' },
+                    { label: 'Rental Revenue', value: `₹${rentalRev.toLocaleString('en-IN')}`, icon: 'laptop_mac', color: 'text-purple-400' },
+                    { label: 'Purchase Revenue', value: `₹${purchaseRev.toLocaleString('en-IN')}`, icon: 'shopping_cart', color: 'text-blue-400' },
+                    { label: 'Avg. Order Value', value: `₹${Math.round(avgOrder).toLocaleString('en-IN')}`, icon: 'trending_up', color: 'text-green-400' },
+                  ].map((kpi, i) => (
+                    <div key={i} className="bg-brand-card border border-brand-border rounded-[2rem] p-8 shadow-xl flex flex-col gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center">
+                        <span className={`material-symbols-outlined text-[22px] ${kpi.color}`}>{kpi.icon}</span>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.4em] mb-1">{kpi.label}</p>
+                        <p className="text-3xl font-display font-bold text-white tracking-tighter">{kpi.value}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── Revenue Bar Chart ── */}
+                <div className="bg-brand-card border border-brand-border rounded-[2.5rem] p-8 lg:p-12 shadow-2xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-10 gap-4">
+                    <div>
+                      <h3 className="text-2xl font-display font-bold text-white">Revenue Breakdown</h3>
+                      <p className="text-xs text-gray-500 mt-1">Rental vs Purchase</p>
+                    </div>
+                    <div className="flex items-center gap-6 text-xs text-gray-400">
+                      <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-brand-primary inline-block" /><span>Rental</span></span>
+                      <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-blue-500 inline-block" /><span>Purchase</span></span>
+                    </div>
+                  </div>
+                  <div className="h-64 flex items-end justify-between gap-1 border-b border-white/10 pb-6">
+                    {chartBuckets.map((b, i) => {
+                      const rentalH = Math.max((b.rental / maxBucket) * 100, b.rental > 0 ? 5 : 0);
+                      const purchaseH = Math.max((b.purchase / maxBucket) * 100, b.purchase > 0 ? 5 : 0);
+                      return (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-0.5 group relative">
+                          <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-brand-elevated border border-brand-border text-white text-xs p-2 rounded pointer-events-none whitespace-nowrap z-10 shadow-lg">
+                            <p className="font-bold">{b.label}</p>
+                            {b.rental > 0 && <p className="text-brand-primary">Rental: ₹{b.rental.toLocaleString()}</p>}
+                            {b.purchase > 0 && <p className="text-blue-400">Purchase: ₹{b.purchase.toLocaleString()}</p>}
+                          </div>
+                          {b.rental > 0 && (
+                            <div className="w-full bg-brand-primary/30 group-hover:bg-brand-primary transition-all duration-300 rounded-t-sm" style={{ height: `${rentalH}%` }} />
+                          )}
+                          {b.purchase > 0 && (
+                            <div className="w-full bg-blue-500/30 group-hover:bg-blue-500 transition-all duration-300 rounded-t-sm" style={{ height: `${purchaseH}%` }} />
+                          )}
+                          {b.rental === 0 && b.purchase === 0 && (
+                            <div className="w-full bg-white/5 rounded-t-sm" style={{ height: '4%' }} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between mt-4 text-[8px] lg:text-[9px] text-gray-500 font-black uppercase tracking-[0.5em]">
+                    {chartBuckets.map((b, i) => (
+                      (chartBuckets.length <= 12 || i % Math.ceil(chartBuckets.length / 12) === 0)
+                        ? <span key={i}>{b.label}</span>
+                        : <span key={i} />
+                    ))}
+                  </div>
+                </div>
+
+                {/* ── Transaction Table ── */}
+                <div className="bg-brand-card border border-brand-border rounded-[2.5rem] p-8 lg:p-10 shadow-2xl overflow-hidden">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+                    <div>
+                      <h3 className="text-xl font-display font-bold text-white">Transactions</h3>
+                      <p className="text-xs text-gray-500 mt-1">{finOrders.length} records in selected period</p>
+                    </div>
+                    <button
+                      onClick={exportCSV}
+                      className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-brand-border text-gray-300 hover:text-white px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">download</span>
+                      Export CSV
+                    </button>
+                  </div>
+
+                  {finOrders.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 opacity-40 gap-4">
+                      <span className="material-symbols-outlined text-6xl">receipt_long</span>
+                      <p className="text-white font-bold">No transactions in this period</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="text-[9px] text-gray-500 font-black uppercase tracking-[0.3em] border-b border-white/5">
+                            <th className="px-5 py-4">Date</th>
+                            <th className="px-5 py-4">Order ID</th>
+                            <th className="px-5 py-4">Customer</th>
+                            <th className="px-5 py-4">Type</th>
+                            <th className="px-5 py-4 text-right">Amount</th>
+                            <th className="px-5 py-4">Payment</th>
+                            <th className="px-5 py-4">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {finOrders.map(order => {
+                            const isRental = order.items.some(i => i.type === 'rent');
+                            return (
+                              <tr key={order.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                                <td className="px-5 py-4 text-gray-400 text-xs whitespace-nowrap">{order.date}</td>
+                                <td className="px-5 py-4 text-white font-mono text-xs">{order.id}</td>
+                                <td className="px-5 py-4">
+                                  <p className="text-white font-bold text-xs">{order.userName}</p>
+                                  <p className="text-gray-500 text-[10px]">{order.userEmail}</p>
+                                </td>
+                                <td className="px-5 py-4">
+                                  <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${isRental ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                                    {isRental ? 'Rental' : 'Purchase'}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-4 text-right">
+                                  <p className="text-white font-bold text-sm">₹{order.total.toLocaleString('en-IN')}</p>
+                                </td>
+                                <td className="px-5 py-4">
+                                  <span className={`text-[10px] font-bold uppercase ${order.paymentStatus === 'Paid' || !order.paymentStatus ? 'text-green-400' : order.paymentStatus === 'Pending' ? 'text-yellow-400' : 'text-red-400'}`}>
+                                    {order.paymentMethod || 'N/A'}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-4">
+                                  <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${order.status === 'Completed' || order.status === 'Delivered'
+                                    ? 'bg-green-500/10 text-green-500 border-green-500/20'
+                                    : order.status === 'Cancelled'
+                                      ? 'bg-red-500/10 text-red-500 border-red-500/20'
+                                      : order.status === 'In Use'
+                                        ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                                        : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                                    }`}>
+                                    {order.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {activeTab === 'support' && (() => {
             // Get all tickets from all users

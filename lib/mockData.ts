@@ -27,6 +27,11 @@ export interface Review {
 export interface Product {
   id: string;
   deposit?: number;
+  availability: 'rent' | 'buy' | 'both';
+  isPublic?: boolean;
+  costPrice?: number;
+  supplierId?: string;
+  internalNotes?: string;
   type: 'rent' | 'buy' | 'rent_and_buy';
   brand: 'Apple' | 'Dell' | 'HP' | 'Lenovo' | 'Asus' | 'Acer' | 'Razer' | 'Logitech' | 'Generic';
   category?: 'Laptop' | 'Desktop' | 'Monitor' | 'Tablet' | 'Audio' | 'Keyboards' | 'Mice' | 'Gaming' | 'Accessories';
@@ -45,6 +50,7 @@ export interface Product {
   rentalOptions?: RentalOption[];
   condition?: 'New' | 'Refurbished' | 'Open Box';
   status?: 'AVAILABLE' | 'LOW STOCK' | 'RENTED' | 'OUT_OF_STOCK';
+  stock?: number;
   grade?: string;
   buyPrice?: number;
   isTrending?: boolean;

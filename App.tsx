@@ -100,20 +100,20 @@ function AppContent() {
             type={viewParams.type}
             searchQuery={viewParams.searchQuery}
             refurbishedOnly={viewParams.refurbishedOnly}
-            onProductClick={(id) => navigate('product', { id })}
+            onProductClick={(id, type) => navigate('product', { id, type })}
             onCategoryChange={(cat) => navigate('listing', { ...viewParams, category: cat })}
           />
         )}
         {currentView === 'brand' && (
           <BrandListing
             brand={viewParams.brand}
-            onProductClick={(id) => navigate('product', { id })}
+            onProductClick={(id, type) => navigate('product', { id, type })}
             onBack={() => navigate('home')}
           />
         )}
         {currentView === 'wishlist' && <Listing favoritesOnly={true} onProductClick={(id) => navigate('product', { id })} />}
         {currentView === 'cart' && <CartPage onNavigate={navigate} />}
-        {currentView === 'product' && <ProductDetails productId={viewParams.id} onBack={() => navigate('listing', { category: 'All' })} />}
+        {currentView === 'product' && <ProductDetails productId={viewParams.id} context={viewParams.type} onBack={() => navigate('listing', { category: 'All' })} />}
         {currentView === 'deal-of-the-day' && <DealOfTheDayPage onNavigate={navigate} />}
         {currentView === 'video-studio' && <VideoGenerator onBack={() => navigate('home')} />}
         {currentView === 'checkout' && (

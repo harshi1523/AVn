@@ -14,7 +14,7 @@ interface HomeProps {
 }
 
 export default function Home({ onNavigate }: HomeProps) {
-  const { products } = useStore();
+  const { visibleProducts: products, isProductsReady } = useStore();
   const featuredProducts = products.slice(0, 4);
   const refurbishedDeals = products
     .filter(p => p.condition === 'Refurbished')
@@ -25,7 +25,7 @@ export default function Home({ onNavigate }: HomeProps) {
       price: `₹${p.price.toLocaleString()}`,
       originalPrice: `₹${p.originalPrice.toLocaleString()}`,
       image: p.image,
-      type: p.type
+      availability: p.availability
     }));
 
   const brands = [
@@ -69,12 +69,35 @@ export default function Home({ onNavigate }: HomeProps) {
         <hr className="border-white/5 my-12" />
       </section>
 
-      <ProductSection
-        title="Refurbished Collection"
-        products={refurbishedDeals}
-        onProductClick={(id) => onNavigate('product', { id })}
-        onViewAll={() => onNavigate('listing', { refurbishedOnly: true })}
-      />
+      {!isProductsReady ? (
+        <section className="py-8 max-w-7xl mx-auto px-4 md:px-8">
+          <div className="flex justify-between items-baseline mb-8">
+            <div className="h-6 w-48 bg-white/5 rounded-lg animate-pulse" />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-5">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="bg-brand-card border border-white/5 rounded-[2rem] overflow-hidden animate-pulse">
+                <div className="aspect-square bg-white/5" />
+                <div className="p-6 space-y-3">
+                  <div className="h-4 bg-white/5 rounded w-3/4" />
+                  <div className="h-5 bg-white/5 rounded w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <hr className="border-white/5 my-12" />
+        </section>
+      ) : (
+        <ProductSection
+          title="Refurbished Collection"
+          products={refurbishedDeals}
+          onProductClick={(id) => {
+            const p = products.find(prod => prod.id === id);
+            onNavigate('product', { id, type: p?.availability === 'both' ? undefined : p?.availability });
+          }}
+          onViewAll={() => onNavigate('listing', { refurbishedOnly: true })}
+        />
+      )}
 
       <section className="py-8 max-w-7xl mx-auto px-4">
         <h3 className="avn-heading">Shop By Brand</h3>
@@ -107,9 +130,22 @@ export default function Home({ onNavigate }: HomeProps) {
       <section className="py-8 max-w-7xl mx-auto px-4">
         <h3 className="avn-heading">Featured Devices</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-          {featuredProducts.map(p => (
-            <ProductCard key={p.id} product={p} onNavigate={onNavigate} />
-          ))}
+          {!isProductsReady
+            ? [...Array(4)].map((_, i) => (
+              <div key={i} className="bg-brand-card border border-white/5 rounded-2xl p-5 animate-pulse flex flex-col h-full">
+                <div className="aspect-video bg-white/5 rounded-xl mb-6" />
+                <div className="h-4 bg-white/5 rounded w-3/4 mb-2" />
+                <div className="h-3 bg-white/5 rounded w-1/2 mb-auto" />
+                <div className="pt-4 border-t border-white/5 mt-4 flex justify-between items-center">
+                  <div className="h-5 bg-white/5 rounded w-1/3" />
+                  <div className="h-8 bg-white/5 rounded-lg w-20" />
+                </div>
+              </div>
+            ))
+            : featuredProducts.map(p => (
+              <ProductCard key={p.id} product={p} onNavigate={onNavigate} />
+            ))
+          }
         </div>
         <div className="flex justify-center">
           <button onClick={() => onNavigate('listing')} className="bg-white/5 border border-white/10 text-white px-10 py-3 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all">View More</button>
@@ -160,7 +196,7 @@ interface ProductCardProps {
 function ProductCard({ product, onNavigate }: ProductCardProps) {
   const { wishlist, toggleWishlist } = useStore();
   const isInWishlist = wishlist.includes(product.id);
-  const isRent = product.type === 'rent';
+  const isRent = product.availability === 'rent' || product.availability === 'both';
 
   return (
     <div className="bg-brand-card border border-white/10 rounded-2xl p-5 hover:border-white/30 transition-all group shadow-xl flex flex-col h-full relative">

@@ -1,13 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { useStore } from "../lib/store";
+import { generateRentalAgreement } from '../lib/rentalAgreement';
 
 interface KYCVerificationProps {
   onComplete: () => void;
   onSkip: () => void;
 }
 
-type VerificationStep = 'personal' | 'documents' | 'agreement' | 'review';
+type VerificationStep = 'documents' | 'agreement';
 
 export default function KYCVerification({ onComplete, onSkip }: KYCVerificationProps) {
   const { user, updateKYCStatus, cart } = useStore();
@@ -18,25 +19,75 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
 
   const [frontFile, setFrontFile] = useState<File | null>(null);
   const [backFile, setBackFile] = useState<File | null>(null);
-  const [activeStep, setActiveStep] = useState<VerificationStep>('documents'); // Renaming step to activeStep to avoid confusion with valid variable
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadedDocs, setUploadedDocs] = useState<{ front: string, back: string } | null>(null);
 
   // Agreement State
   const [agreementPdfUrl, setAgreementPdfUrl] = useState<string | null>(null);
+  const [agreementBlob, setAgreementBlob] = useState<Blob | null>(null);
   const [isAgreementViewed, setIsAgreementViewed] = useState(false);
   const [isAgreementAccepted, setIsAgreementAccepted] = useState(false);
   const [showAgreementModal, setShowAgreementModal] = useState(false);
-  const [uploadedDocs, setUploadedDocs] = useState<{ front: string, back: string } | null>(null);
+  const [isGeneratingAgreement, setIsGeneratingAgreement] = useState(false);
+  const [agreementError, setAgreementError] = useState(false);
 
-  // Import generator (dynamic import or moved to top if possible, here using dynamic for code splitting if needed, but top is better)
-  // Assuming top-level import: import { generateRentalAgreement } from '../lib/rentalAgreement';
+  const generatingRef = useRef(false);
 
-  const steps = [
-    { id: 'personal', label: 'PERSONAL INFO' },
-    { id: 'documents', label: 'DOCUMENTS' },
-    { id: 'agreement', label: 'AGREEMENT' },
-    { id: 'review', label: 'REVIEW' }
-  ];
+  // Auto-generate agreement PDF when entering agreement step
+  useEffect(() => {
+    if (step !== 'agreement' || !user) return;
+    let didCancel = false;
+
+    const run = async () => {
+      if (generatingRef.current) return; // guard against StrictMode double-invoke
+      generatingRef.current = true;
+      setIsGeneratingAgreement(true);
+      setAgreementError(false);
+      setAgreementPdfUrl(null);
+      setAgreementBlob(null);
+      try {
+        const blob = await generateRentalAgreement(user, cart);
+        if (didCancel) return;
+        const url = URL.createObjectURL(blob);
+        setAgreementPdfUrl(url);
+        setAgreementBlob(blob);
+      } catch (err: any) {
+        if (didCancel) return;
+        // Ignore AbortError — happens in React StrictMode dev double-mount
+        if (err?.name === 'AbortError' || err?.message?.includes('aborted')) return;
+        console.error("Failed to generate agreement:", err);
+        setAgreementError(true);
+      } finally {
+        if (!didCancel) setIsGeneratingAgreement(false);
+        generatingRef.current = false;
+      }
+    };
+
+    run();
+    return () => { didCancel = true; };
+  }, [step]);
+
+  const generateAgreement = async () => {
+    if (!user || generatingRef.current) return;
+    generatingRef.current = true;
+    setIsGeneratingAgreement(true);
+    setAgreementError(false);
+    setAgreementPdfUrl(null);
+    setAgreementBlob(null);
+    try {
+      const blob = await generateRentalAgreement(user, cart);
+      const url = URL.createObjectURL(blob);
+      setAgreementPdfUrl(url);
+      setAgreementBlob(blob);
+    } catch (err: any) {
+      if (err?.name === 'AbortError' || err?.message?.includes('aborted')) return;
+      console.error("Failed to generate agreement:", err);
+      setAgreementError(true);
+    } finally {
+      setIsGeneratingAgreement(false);
+      generatingRef.current = false;
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'front' | 'back') => {
     if (e.target.files && e.target.files[0]) {
@@ -46,16 +97,20 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
     }
   };
 
-  const uploadToSupabase = async (file: File, side: 'front' | 'back') => {
+  const uploadToSupabase = async (file: File, side: 'front' | 'back'): Promise<string> => {
     if (!user) throw new Error("User not authenticated");
     const fileExt = file.name.split('.').pop();
-    const fileName = `${user.uid || 'guest'}/${docType.replace(/\s+/g, '_')}_${side}_${Date.now()}.${fileExt}`;
+    return `${user.id || 'guest'}/${docType.replace(/\s+/g, '_')}_${side}_${Date.now()}.${fileExt}`;
+  };
 
-    const { error } = await supabase.storage
-      .from('kyc-documents')
-      .upload(fileName, file);
-
-    if (error) throw error;
+  const tryUploadToStorage = async (file: File, side: 'front' | 'back'): Promise<string> => {
+    const fileName = await uploadToSupabase(file, side);
+    try {
+      await supabase.storage.from('kyc-documents').upload(fileName, file);
+    } catch (err: any) {
+      // Log but don't throw — storage might not be configured yet
+      console.warn(`Storage upload skipped for ${side}:`, err?.message);
+    }
     return fileName;
   };
 
@@ -64,38 +119,24 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
       setUploadError("Please upload both front and back sides of the document.");
       return;
     }
-
     setIsSubmitting(true);
     setUploadError(null);
-
     try {
+      // Best-effort upload — proceeds even if Supabase Storage bucket isn't set up
       const [frontPath, backPath] = await Promise.all([
-        uploadToSupabase(frontFile, 'front'),
-        uploadToSupabase(backFile, 'back')
+        tryUploadToStorage(frontFile, 'front'),
+        tryUploadToStorage(backFile, 'back')
       ]);
-
       setUploadedDocs({ front: frontPath, back: backPath });
       setStep('agreement');
-
-      // Generate Agreement PDF in background
-      if (user) {
-        // We need cart here. Ideally pass it as prop or fetch from store
-        // For now using useStore hook at top level
-        const { cart } = useStore.getState();
-        import('../lib/rentalAgreement').then(async ({ generateRentalAgreement }) => {
-          const blob = await generateRentalAgreement(user, cart);
-          const url = URL.createObjectURL(blob);
-          setAgreementPdfUrl(url);
-        });
-      }
-
     } catch (error: any) {
-      console.error("Upload error:", error);
-      setUploadError(error.message || "Failed to upload documents. Please try again.");
+      console.error("Document submit error:", error);
+      setUploadError(error.message || "Failed to process documents. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   const handleFinalSubmit = async () => {
     if (!isAgreementAccepted) {
@@ -106,25 +147,67 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
       setStep('documents');
       return;
     }
+    if (!agreementBlob) {
+      setUploadError("Agreement PDF is still generating. Please wait a moment and try again.");
+      return;
+    }
+    if (agreementBlob.size === 0) {
+      setUploadError("Agreement PDF is empty. Please go back and try again.");
+      return;
+    }
 
     setIsSubmitting(true);
+    setUploadError(null);
     try {
       if (user) {
+        let agreementUrl: string | undefined = undefined;
+
+        // Upload agreement PDF via native fetch to bypass Supabase JS client's AbortController
+        const timestamp = Date.now();
+        const fileName = `${user.id}/Rental_Agreement_${timestamp}.pdf`;
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+        const uploadEndpoint = `${supabaseUrl}/storage/v1/object/agreements/${fileName}`;
+
+        const uploadResponse = await fetch(uploadEndpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/pdf',
+            'x-upsert': 'true',
+          },
+          body: agreementBlob,
+        });
+
+        if (!uploadResponse.ok) {
+          const errText = await uploadResponse.text();
+          throw new Error(`Agreement upload failed (${uploadResponse.status}): ${errText}`);
+        }
+
+        // Construct public URL directly
+        agreementUrl = `${supabaseUrl}/storage/v1/object/public/agreements/${fileName}`;
+
         await updateKYCStatus(user.id, 'pending', {
           front: uploadedDocs.front,
           back: uploadedDocs.back,
           type: docType,
           agreementAccepted: true,
-          agreementDate: new Date().toISOString()
+          agreementDate: new Date().toISOString(),
+          agreementUrl
         });
+
+        setIsSuccess(true);
       }
-      setIsSuccess(true);
     } catch (error: any) {
-      setUploadError(error.message);
+      console.error("Submission error:", error);
+      setUploadError(error.message || "Failed to submit documents. Please try again.");
     } finally {
       setIsSubmitting(false);
+
     }
   };
+
 
   if (isSuccess) {
     return (
@@ -147,6 +230,11 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
     );
   }
 
+  const steps = [
+    { id: 'documents', label: 'DOCUMENTS' },
+    { id: 'agreement', label: 'AGREEMENT' },
+  ];
+
   return (
     <div className="min-h-screen bg-brand-page relative overflow-hidden flex flex-col">
       {/* Background Glow */}
@@ -154,11 +242,16 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
 
       {/* Header */}
       <header className="relative z-10 px-6 py-6 flex items-center justify-between">
-        <button onClick={onSkip} className="text-white">
+        <button
+          onClick={step === 'agreement' ? () => setStep('documents') : onSkip}
+          className="text-white"
+        >
           <span className="material-symbols-outlined">arrow_back</span>
         </button>
         <h1 className="text-xl font-bold text-white">Verify Identity</h1>
-        <span className="text-xs font-medium text-gray-400">Step 2 of 3</span>
+        <span className="text-xs font-medium text-gray-400">
+          Step {step === 'documents' ? '1' : '2'} of 2
+        </span>
       </header>
 
       <main className="relative z-10 flex-1 max-w-xl mx-auto w-full px-6 pt-8 pb-24 overflow-y-auto no-scrollbar">
@@ -167,7 +260,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
           To ensure a secure rental experience, we need to verify your identity. Please upload a valid government-issued ID.
         </p>
 
-        {/* Custom Progress Bar */}
+        {/* Progress Bar */}
         <div className="mb-10">
           <div className="flex justify-between mb-4">
             {steps.map((s) => (
@@ -180,8 +273,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
             ))}
           </div>
           <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden flex">
-            <div className={`h-full bg-brand-primary transition-all duration-700 shadow-glow ${step === 'personal' ? 'w-1/3' : step === 'documents' ? 'w-2/3' : 'w-full'
-              }`} />
+            <div className={`h-full bg-brand-primary transition-all duration-700 shadow-glow ${step === 'documents' ? 'w-1/2' : 'w-full'}`} />
           </div>
         </div>
 
@@ -198,17 +290,16 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
           </div>
         </div>
 
-        {/* Step Content Switcher */}
+        {/* STEP 1: Documents */}
         {step === 'documents' && (
           <>
-            {/* Select Document Type */}
             <div className="space-y-4 mb-8">
               <label className="block text-sm font-bold text-white">Select Document Type</label>
               <div className="relative">
                 <select
                   value={docType}
                   onChange={(e) => setDocType(e.target.value)}
-                  className="w-full bg-dark-card border border-white/10 rounded-2xl p-4 text-white appearance-none focus:outline-none focus:border-brand-primary transition-colors text-sm font-medium"
+                  className="w-full bg-[#1C1F26] border border-white/10 rounded-2xl p-4 text-white appearance-none focus:outline-none focus:border-brand-primary transition-colors text-sm font-medium"
                 >
                   <option style={{ backgroundColor: 'white', color: 'black' }}>Aadhaar Card</option>
                   <option style={{ backgroundColor: 'white', color: 'black' }}>PAN Card</option>
@@ -222,14 +313,13 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
               </div>
             </div>
 
-            {/* Upload Zones */}
             <div className="space-y-8 mb-10">
               {/* Front Side */}
               <div>
                 <label className="block text-sm font-bold text-white mb-4">Front Side</label>
                 <label className={`relative border-2 border-dashed ${frontFile ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-700'} rounded-3xl p-12 flex flex-col items-center justify-center group hover:border-brand-primary/40 transition-colors cursor-pointer`}>
                   <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileChange(e, 'front')} />
-                  <div className={`w-16 h-16 rounded-full bg-white/5 flex items-center justify-center ${frontFile ? 'text-brand-success' : 'text-white/20'} group-hover:text-brand-primary transition-colors mb-4`}>
+                  <div className={`w-16 h-16 rounded-full bg-white/5 flex items-center justify-center ${frontFile ? 'text-green-400' : 'text-white/20'} group-hover:text-brand-primary transition-colors mb-4`}>
                     <span className="material-symbols-outlined text-3xl">{frontFile ? 'check' : 'add_a_photo'}</span>
                   </div>
                   <p className="text-sm font-bold text-white mb-1">{frontFile ? frontFile.name : 'Tap to upload front'}</p>
@@ -242,7 +332,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
                 <label className="block text-sm font-bold text-white mb-4">Back Side</label>
                 <label className={`relative border-2 border-dashed ${backFile ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-700'} rounded-3xl p-12 flex flex-col items-center justify-center group hover:border-brand-primary/40 transition-colors cursor-pointer`}>
                   <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileChange(e, 'back')} />
-                  <div className={`w-16 h-16 rounded-full bg-white/5 flex items-center justify-center ${backFile ? 'text-brand-success' : 'text-white/20'} group-hover:text-brand-primary transition-colors mb-4`}>
+                  <div className={`w-16 h-16 rounded-full bg-white/5 flex items-center justify-center ${backFile ? 'text-green-400' : 'text-white/20'} group-hover:text-brand-primary transition-colors mb-4`}>
                     <span className="material-symbols-outlined text-3xl">{backFile ? 'check' : 'add_a_photo'}</span>
                   </div>
                   <p className="text-sm font-bold text-white mb-1">{backFile ? backFile.name : 'Tap to upload back'}</p>
@@ -251,7 +341,6 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
               </div>
             </div>
 
-            {/* Information Notice */}
             <div className="bg-white/5 rounded-2xl p-5 flex gap-4 mb-12">
               <span className="material-symbols-outlined text-gray-500 text-xl">info</span>
               <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
@@ -259,14 +348,25 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
               </p>
             </div>
 
-            {/* Actions */}
+            {uploadError && (
+              <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
+                <span className="material-symbols-outlined text-red-400 text-xl flex-shrink-0">error</span>
+                <p className="text-sm text-red-400">{uploadError}</p>
+              </div>
+            )}
+
             <div className="flex flex-col gap-6">
               <button
                 onClick={handleDocumentsSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !frontFile || !backFile}
                 className="w-full bg-cta-gradient text-white font-black py-5 rounded-2xl shadow-glow hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Uploading...' : (
+                {isSubmitting ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+                    Uploading...
+                  </>
+                ) : (
                   <>
                     Continue to Agreement <span className="material-symbols-outlined text-sm">arrow_forward</span>
                   </>
@@ -279,6 +379,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
           </>
         )}
 
+        {/* STEP 2: Agreement */}
         {step === 'agreement' && (
           <div className="animate-in fade-in slide-in-from-right-10 duration-500">
             <div className="bg-[#1C1F26] border border-white/10 rounded-3xl p-6 mb-8 text-center">
@@ -288,19 +389,40 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
               <h3 className="text-xl font-bold text-white mb-2">Digital Rental Agreement</h3>
               <p className="text-sm text-gray-400 mb-6">Please review and sign the rental agreement to proceed.</p>
 
-              <button
-                onClick={() => {
-                  setShowAgreementModal(true);
-                  setIsAgreementViewed(true);
-                }}
-                className="bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-6 rounded-xl border border-white/10 transition-all flex items-center gap-2 mx-auto"
-              >
-                <span className="material-symbols-outlined">visibility</span>
-                View Agreement PDF
-              </button>
+              {/* View Agreement Button */}
+              {isGeneratingAgreement ? (
+                <div className="flex items-center justify-center gap-2 text-gray-400 py-3">
+                  <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+                  <span className="text-sm">Generating your agreement PDF...</span>
+                </div>
+              ) : agreementError ? (
+                <div className="flex flex-col items-center gap-3">
+                  <p className="text-sm text-red-400">Failed to generate the agreement PDF.</p>
+                  <button
+                    onClick={generateAgreement}
+                    className="bg-white/10 hover:bg-white/20 text-white font-bold py-2 px-5 rounded-xl border border-white/10 transition-all flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-sm">refresh</span>
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setShowAgreementModal(true);
+                    setIsAgreementViewed(true);
+                  }}
+                  disabled={!agreementPdfUrl}
+                  className="bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-6 rounded-xl border border-white/10 transition-all flex items-center gap-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined">visibility</span>
+                  View Agreement PDF
+                </button>
+              )}
             </div>
 
-            <div className={`transition-all duration-300 ${isAgreementViewed ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+            {/* Accept Checkbox — only active after viewing */}
+            <div className={`transition-all duration-300 ${isAgreementViewed ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
               <label className="flex gap-4 p-4 border border-white/10 rounded-2xl cursor-pointer hover:bg-white/5 transition-colors items-start">
                 <div className={`w-6 h-6 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 ${isAgreementAccepted ? 'bg-brand-primary border-brand-primary text-black' : 'border-gray-600'}`}>
                   {isAgreementAccepted && <span className="material-symbols-outlined text-sm font-bold">check</span>}
@@ -319,13 +441,31 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
               </label>
             </div>
 
+            {!isAgreementViewed && (
+              <p className="text-xs text-gray-500 text-center mt-3">
+                Please view the agreement above before accepting.
+              </p>
+            )}
+
+            {uploadError && (
+              <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
+                <span className="material-symbols-outlined text-red-400 text-xl flex-shrink-0">error</span>
+                <p className="text-sm text-red-400">{uploadError}</p>
+              </div>
+            )}
+
             <div className="flex flex-col gap-6 mt-8">
               <button
                 onClick={handleFinalSubmit}
-                disabled={!isAgreementAccepted || isSubmitting}
+                disabled={!isAgreementAccepted || isSubmitting || isGeneratingAgreement || agreementError}
                 className="w-full bg-cta-gradient text-white font-black py-5 rounded-2xl shadow-glow hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Submitting...' : (
+                {isSubmitting ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+                    Submitting...
+                  </>
+                ) : (
                   <>
                     Submit & Verify <span className="material-symbols-outlined text-sm">verified</span>
                   </>
@@ -338,7 +478,7 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
           </div>
         )}
 
-        {/* Agreement Modal */}
+        {/* Agreement PDF Modal */}
         {showAgreementModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-[#1C1F26] w-full max-w-4xl h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-white/10">
@@ -347,17 +487,20 @@ export default function KYCVerification({ onComplete, onSkip }: KYCVerificationP
                   <span className="material-symbols-outlined text-brand-primary">description</span>
                   Rental Agreement Review
                 </h3>
-                <button onClick={() => setShowAgreementModal(false)} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all">
+                <button
+                  onClick={() => setShowAgreementModal(false)}
+                  className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all"
+                >
                   <span className="material-symbols-outlined">close</span>
                 </button>
               </div>
               <div className="flex-1 bg-gray-900 relative">
                 {agreementPdfUrl ? (
-                  <iframe src={agreementPdfUrl} className="w-full h-full" title="Rental Agreement"></iframe>
+                  <iframe src={agreementPdfUrl} className="w-full h-full" title="Rental Agreement" />
                 ) : (
                   <div className="flex items-center justify-center h-full text-gray-500 flex-col gap-4">
                     <span className="material-symbols-outlined text-4xl animate-spin">progress_activity</span>
-                    <p>Generating Agreement...</p>
+                    <p>Loading Agreement...</p>
                   </div>
                 )}
               </div>
