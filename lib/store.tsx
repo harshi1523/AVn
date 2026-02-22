@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Product } from './mockData';
+import { products as initialProducts, Product } from './mockData';
 import { createAndUploadInvoice } from './invoice';
 import { GoogleGenAI } from "@google/genai";
 import { auth, db } from './firebase';
@@ -74,7 +74,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       return null;
     }
   });
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(initialProducts);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -180,19 +180,32 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   // --- PRODUCTS: FIREBASE SYNC & SEEDING ---
   useEffect(() => {
     const productsCol = collection(db, 'products');
-
-    // 1. Setup Realtime Listener
-    const unsubscribe = onSnapshot(productsCol, (snapshot) => {
+    const unsubscribe = onSnapshot(productsCol, async (snapshot) => {
       const liveProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
-      setProducts(liveProducts);
-      setIsProductsReady(true); // Mark products as ready after first snapshot
+
+      if (liveProducts.length === 0 && initialProducts.length > 0) {
+        // Seeding initial data - ONLY attempt if there's a reason to believe we might have permission
+        // but even if we don't, we should eventually stop loading.
+        console.log("Seeding initial products to Firestore...");
+        try {
+          // We only try to seed once. If it fails (e.g. not an admin), we just show empty.
+          await Promise.all(initialProducts.map(p => setDoc(doc(db, 'products', p.id), p)));
+          console.log("Seeding complete.");
+          // No need to setProducts here, onSnapshot will fire again.
+        } catch (err) {
+          console.error("Error seeding products:", err);
+          // If seeding fails (likely permission), still mark as ready so UI doesn't hang
+          setProducts([]);
+          setIsProductsReady(true);
+        }
+      } else {
+        setProducts(liveProducts);
+        setIsProductsReady(true);
+      }
     }, (error) => {
       console.error("Error fetching products:", error);
-      setIsProductsReady(true); // Still mark ready on error so UI doesn't hang
+      setIsProductsReady(true);
     });
-
-    // 2. Initial Seeding Check (REMOVED)
-    // const checkAndSeed = async () => { ... }
 
     return () => unsubscribe();
   }, []);
