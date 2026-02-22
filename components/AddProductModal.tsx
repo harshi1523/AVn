@@ -119,7 +119,7 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
             if (!formData.buyPrice || formData.buyPrice <= 0) newErrors.buyPrice = "Valid Selling Price is required";
         }
 
-        if (!formData.category) newErrors.category = "Category is required";
+        if (!formData.category || (Array.isArray(formData.category) && formData.category.length === 0)) newErrors.category = "At least one category is required";
         if (!formData.brand) newErrors.brand = "Brand is required";
 
         if (Object.keys(newErrors).length > 0) {
@@ -250,25 +250,33 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                 <option value="both" style={{ backgroundColor: 'white', color: 'black' }}>Both (Buy & Rent)</option>
                             </select>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Category</label>
-                            <select
-                                name="category"
-                                value={formData.category || ''}
-                                onChange={(e) => {
-                                    handleChange(e);
-                                    if (errors.category) setErrors({ ...errors, category: '' });
-                                }}
-                                className={`w-full bg-black/40 border ${errors.category ? 'border-red-500' : 'border-brand-border'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm`}
-                            >
-                                <option value="" disabled style={{ backgroundColor: 'white', color: 'gray' }}>Select Category</option>
-                                <option value="Laptop" style={{ backgroundColor: 'white', color: 'black' }}>Laptop</option>
-                                <option value="Desktop" style={{ backgroundColor: 'white', color: 'black' }}>Desktop</option>
-                                <option value="Monitor" style={{ backgroundColor: 'white', color: 'black' }}>Monitor</option>
-                                <option value="Audio" style={{ backgroundColor: 'white', color: 'black' }}>Audio</option>
-                                <option value="Gaming" style={{ backgroundColor: 'white', color: 'black' }}>Gaming</option>
-                                <option value="Accessories" style={{ backgroundColor: 'white', color: 'black' }}>Accessories</option>
-                            </select>
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Categories (Select Various)</label>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {['Laptop', 'Desktop', 'Monitor', 'Tablet', 'Audio', 'Keyboards', 'Mice', 'Gaming', 'Accessories'].map((cat) => {
+                                    const currentCategories = Array.isArray(formData.category) ? formData.category : (formData.category ? [formData.category] : []);
+                                    const isSelected = currentCategories.includes(cat as any);
+                                    return (
+                                        <button
+                                            key={cat}
+                                            type="button"
+                                            onClick={() => {
+                                                const newCategories = isSelected
+                                                    ? currentCategories.filter(c => c !== cat)
+                                                    : [...currentCategories, cat as any];
+                                                setFormData(prev => ({ ...prev, category: newCategories }));
+                                                if (errors.category) setErrors({ ...errors, category: '' });
+                                            }}
+                                            className={`px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 border ${isSelected
+                                                ? 'bg-brand-primary/20 border-brand-primary text-brand-primary'
+                                                : 'bg-black/40 border-brand-border text-gray-500 hover:border-white/20'
+                                                }`}
+                                        >
+                                            {cat}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                             {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
                         </div>
                         <div className="space-y-2">

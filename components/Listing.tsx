@@ -42,13 +42,26 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
             if (query) {
                 const keywords = query.split(/\s+/);
                 results = results.filter(p => {
+                    const productCategories = Array.isArray(p.category) ? p.category : (p.category ? [p.category] : []);
                     const availabilityFallback = p.availability || (p.type === 'rent_and_buy' ? 'both' : p.type) || '';
-                    const searchableText = `${p.name} ${p.brand} ${p.category} ${p.subtitle} ${p.condition} ${availabilityFallback}`.toLowerCase();
+                    const searchableText = `${p.name} ${p.brand} ${productCategories.join(' ')} ${p.subtitle} ${p.condition} ${availabilityFallback}`.toLowerCase();
                     return keywords.every(kw => searchableText.includes(kw));
                 });
             }
             if (category && category !== 'All') {
-                results = results.filter(p => p.category === category);
+                results = results.filter(p => {
+                    const productCategories = Array.isArray(p.category) ? p.category : (p.category ? [p.category] : []);
+
+                    // Direct match
+                    if (productCategories.includes(category as any)) return true;
+
+                    // Grouping logic for common collection filters
+                    if (category === 'Desktop' && productCategories.includes('Monitor')) return true;
+                    if (category === 'Accessories' && ['Keyboards', 'Mice', 'Audio', 'Accessories'].some(cat => productCategories.includes(cat as any))) return true;
+                    if (category === 'Gaming' && productCategories.includes('Gaming')) return true;
+
+                    return false;
+                });
             }
             if (selectedType !== 'all') {
                 results = results.filter(p => {
