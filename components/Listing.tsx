@@ -42,7 +42,8 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
             if (query) {
                 const keywords = query.split(/\s+/);
                 results = results.filter(p => {
-                    const searchableText = `${p.name} ${p.brand} ${p.category} ${p.subtitle} ${p.condition} ${p.availability}`.toLowerCase();
+                    const availabilityFallback = p.availability || (p.type === 'rent_and_buy' ? 'both' : p.type) || '';
+                    const searchableText = `${p.name} ${p.brand} ${p.category} ${p.subtitle} ${p.condition} ${availabilityFallback}`.toLowerCase();
                     return keywords.every(kw => searchableText.includes(kw));
                 });
             }
@@ -50,11 +51,12 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                 results = results.filter(p => p.category === category);
             }
             if (selectedType !== 'all') {
-                results = results.filter(p =>
-                    selectedType === 'rent'
-                        ? (p.availability === 'rent' || p.availability === 'both')
-                        : (p.availability === 'buy' || p.availability === 'both')
-                );
+                results = results.filter(p => {
+                    const availability = p.availability || (p.type === 'rent_and_buy' ? 'both' : p.type);
+                    return selectedType === 'rent'
+                        ? (availability === 'rent' || availability === 'both')
+                        : (availability === 'buy' || availability === 'both');
+                });
             }
             if (selectedBrands.length > 0) {
                 results = results.filter(p => selectedBrands.includes(p.brand));

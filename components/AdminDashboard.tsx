@@ -68,7 +68,8 @@ export default function AdminDashboard() {
     if (!searchTerm) return true;
     const query = searchTerm.toLowerCase();
     const keywords = query.split(/\s+/);
-    const searchableText = `${p.name} ${p.id} ${p.brand} ${p.category || ''} ${p.availability || ''}`.toLowerCase();
+    const availabilityFallback = p.availability || (p.type === 'rent_and_buy' ? 'both' : p.type) || '';
+    const searchableText = `${p.name} ${p.id} ${p.brand} ${p.category || ''} ${availabilityFallback}`.toLowerCase();
     return keywords.every(kw => searchableText.includes(kw));
   });
 

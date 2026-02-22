@@ -14,6 +14,7 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
     const [newFeature, setNewFeature] = useState<ProductFeature>({ title: '', description: '', icon: 'star' });
     const [formData, setFormData] = useState<Partial<Product>>(productToEdit || {
         availability: 'rent',
+        type: 'rent',
         category: undefined,
         brand: undefined,
         condition: 'New',
@@ -72,6 +73,13 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                 ...prev,
                 [name]: name === 'price' || name === 'originalPrice' || name === 'stock' ? Number(value) : value
             };
+
+            // Synchronize type and availability
+            if (name === 'availability') {
+                if (value === 'buy') updated.type = 'buy';
+                else if (value === 'rent') updated.type = 'rent';
+                else if (value === 'both') updated.type = 'rent_and_buy';
+            }
 
             // Reset rental specific fields if switching to buy only
             if (name === 'availability' && value === 'buy') {
@@ -200,11 +208,11 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Selling Price (₹)</label>
                                 <input
                                     type="number"
-                                    name={formData.type === 'rent_and_buy' ? 'buyPrice' : 'price'}
-                                    value={(formData.type === 'rent_and_buy' ? formData.buyPrice : formData.price) || ''}
+                                    name={formData.availability === 'both' ? 'buyPrice' : 'price'}
+                                    value={(formData.availability === 'both' ? formData.buyPrice : formData.price) || ''}
                                     onChange={(e) => {
                                         handleChange(e);
-                                        const key = formData.type === 'rent_and_buy' ? 'buyPrice' : 'price';
+                                        const key = formData.availability === 'both' ? 'buyPrice' : 'price';
                                         if (errors[key]) setErrors({ ...errors, [key]: '' });
                                     }}
                                     className={`w-full bg-black/40 border ${errors[formData.availability === 'both' ? 'buyPrice' : 'price'] ? 'border-red-500' : 'border-brand-border'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm`}
