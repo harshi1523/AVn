@@ -14,7 +14,7 @@ interface HomeProps {
 }
 
 export default function Home({ onNavigate }: HomeProps) {
-  const { products, isProductsReady } = useStore();
+  const { visibleProducts: products, isProductsReady } = useStore();
   const featuredProducts = products.slice(0, 4);
   const refurbishedDeals = products
     .filter(p => p.condition === 'Refurbished')

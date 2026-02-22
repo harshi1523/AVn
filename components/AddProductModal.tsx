@@ -24,7 +24,8 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
         features: [],
         rentalOptions: [],
         deposit: 0,
-        buyPrice: 0 // Initialize buyPrice
+        buyPrice: 0,
+        isPublic: true // Default to visible for new products
     });
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
@@ -79,6 +80,13 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
             }
             return updated;
         });
+    };
+
+    const handleToggleVisibility = () => {
+        setFormData(prev => ({
+            ...prev,
+            isPublic: !prev.isPublic
+        }));
     };
 
     const isRentable = formData.availability === 'rent' || formData.availability === 'both';
@@ -318,6 +326,30 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                 placeholder="0"
                             />
                         </div>
+                    </div>
+
+                    {/* Visibility Toggle */}
+                    <div className="bg-brand-primary/5 border border-brand-primary/20 rounded-2xl p-6 flex items-center justify-between group hover:border-brand-primary/40 transition-all">
+                        <div className="space-y-1">
+                            <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                                <span className={`material-symbols-outlined text-lg ${formData.isPublic ? 'text-brand-primary' : 'text-gray-500'}`}>
+                                    {formData.isPublic ? 'visibility' : 'visibility_off'}
+                                </span>
+                                Guest Visibility
+                            </h4>
+                            <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">
+                                {formData.isPublic ? 'Visible on storefront' : 'Hidden from guests (Admin Only)'}
+                            </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={formData.isPublic}
+                                onChange={handleToggleVisibility}
+                                className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-primary"></div>
+                        </label>
                     </div>
 
                     {/* Rental Specific Fields */}

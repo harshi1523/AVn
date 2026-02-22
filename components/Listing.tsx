@@ -15,7 +15,7 @@ interface ListingProps {
 }
 
 export default function Listing({ category = 'All', type, searchQuery, favoritesOnly, refurbishedOnly, onProductClick, onCategoryChange }: ListingProps) {
-    const { wishlist, toggleWishlist, addToCart, products } = useStore();
+    const { wishlist, toggleWishlist, addToCart, visibleProducts: products } = useStore();
     const [isLoading, setIsLoading] = useState(true);
     const [localSearch, setLocalSearch] = useState("");
     const [selectedType, setSelectedType] = useState<'rent' | 'buy' | 'all'>(type || 'all');

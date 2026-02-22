@@ -17,6 +17,7 @@ service cloud.firestore {
     // Fetches the user's profile document to check the 'role' field
     function isAdmin() {
       return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
@@ -31,7 +32,10 @@ service cloud.firestore {
 
     // Products collection
     match /products/{productId} {
-      allow read: if true;
+      // Allow read if:
+      // 1. The product is public (true or missing/legacy)
+      // 2. OR the user is an admin (verified via users collection)
+      allow read: if (resource.data.get('isPublic', true) == true) || isAdmin();
       allow write: if isAdmin();
     }
   }

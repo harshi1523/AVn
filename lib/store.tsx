@@ -4,7 +4,7 @@ import { createAndUploadInvoice } from './invoice';
 import { GoogleGenAI } from "@google/genai";
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, updateProfile as updateAuthProfile, updateEmail, sendPasswordResetEmail } from "firebase/auth";
-import { doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, collection, deleteDoc, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, collection, deleteDoc, getDocs, query, where } from "firebase/firestore";
 import { getStorage, ref, deleteObject } from "firebase/storage";
 import { Notification, Address, CartItem, Order, Ticket, User, FinanceStats } from './types';
 
@@ -21,7 +21,8 @@ interface StoreContextType {
   wishlist: string[];
   allUsers: User[];
   finance: FinanceStats;
-  products: Product[];
+  products: Product[]; // All products (filtered by query)
+  visibleProducts: Product[]; // Sanitized products for display
   notifications: Notification[];
   isCartOpen: boolean;
   isAuthOpen: boolean;
@@ -179,22 +180,39 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
   // --- PRODUCTS: FIREBASE SYNC & SEEDING ---
   useEffect(() => {
+    // Determine query based on role
+    // Admin gets all products, Guest/User gets only public ones
     const productsCol = collection(db, 'products');
-    const unsubscribe = onSnapshot(productsCol, async (snapshot) => {
-      const liveProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+    // FOR GUESTS: We MUST use a filtered query to match Firestore security rules.
+    // If a product is missing 'isPublic', it will NOT show up for guests until fixed by an admin.
+    const productsQuery = user?.role === 'admin'
+      ? productsCol
+      : query(productsCol, where('isPublic', '==', true));
 
-      if (liveProducts.length === 0 && initialProducts.length > 0) {
-        // Seeding initial data - ONLY attempt if there's a reason to believe we might have permission
-        // but even if we don't, we should eventually stop loading.
+    const unsubscribe = onSnapshot(productsQuery, async (snapshot) => {
+      let liveProducts = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // Default to true for legacy data so products don't disappear
+          isPublic: data.isPublic !== undefined ? data.isPublic : true
+        } as Product;
+      });
+
+      // Guest visibility: also filter out-of-stock items
+      if (user?.role !== 'admin') {
+        liveProducts = liveProducts.filter(p => p.status !== 'OUT_OF_STOCK');
+      }
+
+      if (liveProducts.length === 0 && initialProducts.length > 0 && user?.role === 'admin') {
+        // Seeding initial data - ONLY if admin and no products found
         console.log("Seeding initial products to Firestore...");
         try {
-          // We only try to seed once. If it fails (e.g. not an admin), we just show empty.
           await Promise.all(initialProducts.map(p => setDoc(doc(db, 'products', p.id), p)));
           console.log("Seeding complete.");
-          // No need to setProducts here, onSnapshot will fire again.
         } catch (err) {
           console.error("Error seeding products:", err);
-          // If seeding fails (likely permission), still mark as ready so UI doesn't hang
           setProducts([]);
           setIsProductsReady(true);
         }
@@ -202,13 +220,28 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
         setProducts(liveProducts);
         setIsProductsReady(true);
       }
+
+      // Self-healing: Update products missing isPublic field if admin
+      if (user?.role === 'admin') {
+        const legacyDocs = snapshot.docs.filter(doc => doc.data().isPublic === undefined);
+        if (legacyDocs.length > 0) {
+          console.log(`Updating ${legacyDocs.length} legacy products with default visibility...`);
+          legacyDocs.forEach(async (legacyDoc) => {
+            try {
+              await updateDoc(doc(db, 'products', legacyDoc.id), { isPublic: true });
+            } catch (err) {
+              console.error("Error healing legacy product:", err);
+            }
+          });
+        }
+      }
     }, (error) => {
       console.error("Error fetching products:", error);
       setIsProductsReady(true);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user?.role]);
 
   // --- FIREBASE AUTH LISTENER ---
   useEffect(() => {
@@ -1257,9 +1290,35 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
 
   const dismissNotification = (id: string) => { setNotifications(prev => prev.filter(n => n.id !== id)); };
 
+  // --- VISIBILITY LAYER: SANITIZED VIEW ---
+  const visibleProducts = React.useMemo(() => {
+    if (user?.role === 'admin') return products;
+
+    // Sanitized View for non-admins: filter isPublic and strip sensitive fields
+    return products
+      .filter(p => p.isPublic && p.status !== 'OUT_OF_STOCK')
+      .map(p => {
+        const { costPrice, internalNotes, ...sanitizedProduct } = p as any;
+        return sanitizedProduct as Product;
+      });
+  }, [products, user?.role]);
+
+  // --- VALIDATION SCRIPT (As requested in Master Fix) ---
+  useEffect(() => {
+    if (isProductsReady) {
+      console.log(`[Verification] User Role: ${user?.role || 'Guest'}`);
+      console.log(`[Verification] Full Inventory Count: ${products.length}`);
+      console.log(`[Verification] Sanitized Catalog Count: ${visibleProducts.length}`);
+
+      if (user?.role !== 'admin' && products.length > visibleProducts.length) {
+        console.log(`[Verification] SUCCESS: Guest view is correctly filtered.`);
+      }
+    }
+  }, [isProductsReady, products.length, visibleProducts.length, user?.role]);
+
   return (
     <StoreContext.Provider value={{
-      user, setUser, cart, orders, tickets, wishlist, allUsers, finance, products, notifications, isCartOpen, isAuthOpen, isDBReady, isProductsReady,
+      user, setUser, cart, orders, tickets, wishlist, allUsers, finance, products, visibleProducts, notifications, isCartOpen, isAuthOpen, isDBReady, isProductsReady,
       login, loginWithGoogle, signup, logout, resetPassword, addProduct, updateProduct, deleteProduct, addToCart, updateQuantity, removeFromCart, placeOrder, addTicket, addTicketMessage, updateTicketPriority, assignTicket, toggleWishlist,
       toggleCart: setIsCartOpen, toggleAuth: setIsAuthOpen, updateOrderStatus, updateTicketStatus, updateKYCStatus, updateUserStatus, dismissNotification,
       addAddress, updateAddress, setDefaultAddress, removeAddress, updateRentalPreferences, savePendingCheckout, refreshProfile, updateProfile, updateEmailAddress

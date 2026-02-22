@@ -827,6 +827,9 @@ export default function AdminDashboard() {
                             Dep: ₹{p.deposit.toLocaleString()}
                           </span>
                         )}
+                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${p.isPublic ? 'bg-brand-primary/10 text-brand-primary border-brand-primary/20' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'}`}>
+                          {p.isPublic ? 'Public' : 'Hidden'}
+                        </span>
                       </div>
                       <div className="flex gap-4 mt-6">
                         <button onClick={() => { setEditingProduct(p); setIsAddProductOpen(true); }} className="flex-1 bg-white/5 hover:bg-white/10 py-4 lg:py-3 rounded-xl text-[9px] font-black uppercase text-gray-400 hover:text-white transition-all cursor-pointer min-h-[44px] flex items-center justify-center">Edit</button>
