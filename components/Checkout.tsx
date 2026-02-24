@@ -129,6 +129,11 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                 }));
                 await savePendingCheckout(pendingDetails);
                 window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } }));
+            } else if (code === 'KYC_EXPIRED') {
+                setCheckoutError('Your KYC has expired (valid for 3 months). Please submit a new KYC to continue renting.');
+                // Optionally redirect to KYC after a brief delay or provide a link
+            } else if (code === 'KYC_LIMIT_REACHED') {
+                setCheckoutError('You have reached the limit of 3 products per KYC. Please submit a new KYC to rent more products.');
             } else if (code === 'MAX_RENTALS_REACHED') {
                 setCheckoutError('You already have 3 active rentals. Please return a device before renting another.');
             } else if (code === 'TENURE_EXCEEDED') {

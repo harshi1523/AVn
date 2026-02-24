@@ -578,43 +578,93 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     if (!user) return;
     const userDocRef = doc(db, 'users', user.id);
     const sanitized = JSON.parse(JSON.stringify(data ?? null)); // strips undefined values
-    await updateDoc(userDocRef, { [field]: sanitized });
+    try {
+      await updateDoc(userDocRef, { [field]: sanitized });
+    } catch (err) {
+      throw err;
+    }
   };
 
   // --- RENTAL BUSINESS RULES ---
   const MAX_RENTAL_MONTHS = 3;
-  const MAX_ACTIVE_RENTALS = 3;
+  const MAX_RENTAL_PRODUCTS = 3;
 
-  const getActiveRentalCount = () =>
-    orders.filter(o =>
-      o.items.some(i => i.type === 'rent') &&
-      !['Delivered', 'Returned', 'Cancelled'].includes(o.status)
-    ).length;
+  const isKYCValid = (u: User | null): { valid: boolean; reason?: 'NOT_APPROVED' | 'EXPIRED' | 'LIMIT_REACHED' | 'NOT_LOGGED_IN' } => {
+    if (!u) return { valid: false, reason: 'NOT_LOGGED_IN' };
+    if (u.kycStatus !== 'approved' || !u.kycVerifiedDate) return { valid: false, reason: 'NOT_APPROVED' };
+
+    // 1. Check Expiration (3 months)
+    const verifiedDate = new Date(u.kycVerifiedDate);
+    const expiryDate = new Date(verifiedDate);
+    expiryDate.setMonth(expiryDate.getMonth() + 3);
+    if (Date.now() > expiryDate.getTime()) return { valid: false, reason: 'EXPIRED' };
+
+    // 2. Check Product Limit (3 products under this KYC)
+    // Count all rental products in orders placed since kycVerifiedDate
+    const rentalProductsCount = (u.orders || [])
+      .filter(o => {
+        const orderDate = new Date(o.date);
+        // Compare dates (order date is YYYY-MM-DD, verifiedDate is ISO)
+        // To be safe, we compare the start of the day of verifiedDate
+        const vDateStart = new Date(verifiedDate.getFullYear(), verifiedDate.getMonth(), verifiedDate.getDate());
+        return orderDate >= vDateStart && o.status !== 'Cancelled';
+      })
+      .reduce((acc, order) => {
+        const rentalItems = order.items.filter(i => i.type === 'rent');
+        return acc + rentalItems.reduce((q, item) => q + item.quantity, 0);
+      }, 0);
+
+    // Also include current cart rental items if we are checking for "can I add more"
+    // But for the general validity check, we focus on confirmed orders.
+    // However, addToCart should check if adding this would exceed the limit.
+
+    if (rentalProductsCount >= MAX_RENTAL_PRODUCTS) return { valid: false, reason: 'LIMIT_REACHED' };
+
+    return { valid: true };
+  };
 
   const addToCart = async (productId: string, type: 'rent' | 'buy', tenure?: number, variants?: CartItem['variants'], warranty?: CartItem['warranty']) => {
     if (!user) { setIsAuthOpen(true); return; }
 
     // --- RENTAL BUSINESS RULE CHECKS ---
     if (type === 'rent') {
-      if (user.kycStatus !== 'approved') {
-        throw new Error('KYC_NOT_APPROVED');
+      const kycCheck = isKYCValid(user);
+      if (!kycCheck.valid) {
+        if (kycCheck.reason === 'NOT_APPROVED') throw new Error('KYC_NOT_APPROVED');
+        if (kycCheck.reason === 'EXPIRED') throw new Error('KYC_EXPIRED');
+        if (kycCheck.reason === 'LIMIT_REACHED') throw new Error('KYC_LIMIT_REACHED');
       }
+
       if (tenure && tenure > MAX_RENTAL_MONTHS) {
         throw new Error('TENURE_EXCEEDED');
       }
-      if (getActiveRentalCount() >= MAX_ACTIVE_RENTALS) {
-        throw new Error('MAX_RENTALS_REACHED');
+
+      // Check if adding this product (quantity 1) would exceed the limit
+      const cartRentalCount = cart.filter(i => i.type === 'rent').reduce((acc, i) => acc + i.quantity, 0);
+      const ordersRentalCount = (user.orders || [])
+        .filter(o => {
+          if (!user.kycVerifiedDate) return false;
+          const vDate = new Date(user.kycVerifiedDate);
+          const vDateStart = new Date(vDate.getFullYear(), vDate.getMonth(), vDate.getDate());
+          return new Date(o.date) >= vDateStart && o.status !== 'Cancelled';
+        })
+        .reduce((acc, order) => acc + order.items.filter(i => i.type === 'rent').reduce((q, item) => q + item.quantity, 0), 0);
+
+      if (ordersRentalCount + cartRentalCount >= MAX_RENTAL_PRODUCTS) {
+        throw new Error('KYC_LIMIT_REACHED');
       }
     }
 
     const product = products.find(p => p.id === productId);
-    if (!product) return;
+    if (!product) throw new Error('Product not found in database.');
 
     let basePrice = product.price;
     if (type === 'rent') {
-      if (tenure && product.rentalOptions) {
+      if (tenure && product.rentalOptions && product.rentalOptions.length > 0) {
         const option = product.rentalOptions.find(o => o.months === tenure) || product.rentalOptions[0];
-        basePrice = option.price;
+        if (option) {
+          basePrice = option.price;
+        }
       }
     } else {
       basePrice = product.buyPrice || product.price;
@@ -671,11 +721,29 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   const placeOrder = async (address: string, paymentMethod: string, totalOverride?: number, rentalDetails?: { start?: string, end?: string, deposit?: number, method?: 'pickup' | 'delivery' }) => {
     if (!user) return;
 
-    // --- RENTAL BUSINESS RULE RE-VALIDATION (safety net) ---
     const rentalItems = cart.filter(i => i.type === 'rent');
     if (rentalItems.length > 0) {
-      if (user.kycStatus !== 'approved') throw new Error('KYC_NOT_APPROVED');
-      if (getActiveRentalCount() >= MAX_ACTIVE_RENTALS) throw new Error('MAX_RENTALS_REACHED');
+      const kycCheck = isKYCValid(user);
+      if (!kycCheck.valid) {
+        if (kycCheck.reason === 'EXPIRED') throw new Error('KYC_EXPIRED');
+        if (kycCheck.reason === 'LIMIT_REACHED') throw new Error('KYC_LIMIT_REACHED');
+        throw new Error('KYC_NOT_APPROVED');
+      }
+
+      const cartRentalCount = rentalItems.reduce((acc, i) => acc + i.quantity, 0);
+      const ordersRentalCount = (orders || [])
+        .filter(o => {
+          if (!user.kycVerifiedDate) return false;
+          const vDate = new Date(user.kycVerifiedDate);
+          const vDateStart = new Date(vDate.getFullYear(), vDate.getMonth(), vDate.getDate());
+          return new Date(o.date) >= vDateStart && o.status !== 'Cancelled';
+        })
+        .reduce((acc, order) => acc + order.items.filter(i => i.type === 'rent').reduce((q, item) => q + item.quantity, 0), 0);
+
+      if (ordersRentalCount + cartRentalCount > MAX_RENTAL_PRODUCTS) {
+        throw new Error('KYC_LIMIT_REACHED');
+      }
+
       if (rentalItems.some(i => i.tenure && i.tenure > MAX_RENTAL_MONTHS)) throw new Error('TENURE_EXCEEDED');
     }
 

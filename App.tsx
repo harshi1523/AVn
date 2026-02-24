@@ -100,8 +100,10 @@ function AppContent() {
             type={viewParams.type}
             searchQuery={viewParams.searchQuery}
             refurbishedOnly={viewParams.refurbishedOnly}
+            priceRange={viewParams.priceRange}
             onProductClick={(id, type) => navigate('product', { id, type })}
             onCategoryChange={(cat) => navigate('listing', { ...viewParams, category: cat })}
+            onBack={() => navigate('home')}
           />
         )}
         {currentView === 'brand' && (
@@ -111,7 +113,7 @@ function AppContent() {
             onBack={() => navigate('home')}
           />
         )}
-        {currentView === 'wishlist' && <Listing favoritesOnly={true} onProductClick={(id) => navigate('product', { id })} />}
+        {currentView === 'wishlist' && <Listing favoritesOnly={true} onProductClick={(id) => navigate('product', { id })} onBack={() => navigate('home')} />}
         {currentView === 'cart' && <CartPage onNavigate={navigate} />}
         {currentView === 'product' && <ProductDetails productId={viewParams.id} context={viewParams.type} onBack={() => navigate('listing', { category: 'All' })} />}
         {currentView === 'deal-of-the-day' && <DealOfTheDayPage onNavigate={navigate} />}

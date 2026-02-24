@@ -3,6 +3,7 @@ import { Product } from "../lib/mockData";
 import { useStore } from "../lib/store";
 import Tooltip from "./Tooltip";
 import QuickViewModal from "./QuickViewModal";
+import FavoriteButton from "./FavoriteButton";
 
 interface ListingProps {
     category?: string;
@@ -10,11 +11,13 @@ interface ListingProps {
     searchQuery?: string;
     favoritesOnly?: boolean;
     refurbishedOnly?: boolean;
+    priceRange?: 'low' | 'mid' | 'high';
     onProductClick: (id: string, type?: 'rent' | 'buy') => void;
     onCategoryChange?: (category: string) => void;
+    onBack?: () => void;
 }
 
-export default function Listing({ category = 'All', type, searchQuery, favoritesOnly, refurbishedOnly, onProductClick, onCategoryChange }: ListingProps) {
+export default function Listing({ category = 'All', type, searchQuery, favoritesOnly, refurbishedOnly, priceRange, onProductClick, onCategoryChange, onBack }: ListingProps) {
     const { wishlist, toggleWishlist, addToCart, visibleProducts: products } = useStore();
     const [isLoading, setIsLoading] = useState(true);
     const [localSearch, setLocalSearch] = useState("");
@@ -42,23 +45,23 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
             if (query) {
                 const keywords = query.split(/\s+/);
                 results = results.filter(p => {
-                    const productCategories = Array.isArray(p.category) ? p.category : (p.category ? [p.category] : []);
                     const availabilityFallback = p.availability || (p.type === 'rent_and_buy' ? 'both' : p.type) || '';
-                    const searchableText = `${p.name} ${p.brand} ${productCategories.join(' ')} ${p.subtitle} ${p.condition} ${availabilityFallback}`.toLowerCase();
+                    const searchableText = `${p.name} ${p.brand} ${p.category || ''} ${p.subtitle} ${p.condition} ${availabilityFallback}`.toLowerCase();
                     return keywords.every(kw => searchableText.includes(kw));
                 });
             }
             if (category && category !== 'All') {
                 results = results.filter(p => {
-                    const productCategories = Array.isArray(p.category) ? p.category : (p.category ? [p.category] : []);
+                    const cat = p.category;
+                    if (!cat) return false;
 
                     // Direct match
-                    if (productCategories.includes(category as any)) return true;
+                    if (cat === category) return true;
 
                     // Grouping logic for common collection filters
-                    if (category === 'Desktop' && productCategories.includes('Monitor')) return true;
-                    if (category === 'Accessories' && ['Keyboards', 'Mice', 'Audio', 'Accessories'].some(cat => productCategories.includes(cat as any))) return true;
-                    if (category === 'Gaming' && productCategories.includes('Gaming')) return true;
+                    if (category === 'Desktop' && cat === 'Monitor') return true;
+                    if (category === 'Accessories' && ['Keyboards', 'Mice', 'Audio', 'Accessories'].includes(cat)) return true;
+                    if (category === 'Gaming' && cat === 'Gaming') return true;
 
                     return false;
                 });
@@ -76,6 +79,16 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
             }
             const activeCondition = refurbishedOnly ? 'Refurbished' : (selectedCondition !== 'All' ? selectedCondition : null);
             if (activeCondition) results = results.filter(p => p.condition === activeCondition);
+
+            if (priceRange) {
+                results = results.filter(p => {
+                    const price = p.price;
+                    if (priceRange === 'low') return price < 1200;
+                    if (priceRange === 'mid') return price >= 1200 && price <= 2500;
+                    if (priceRange === 'high') return price > 2500;
+                    return true;
+                });
+            }
         }
 
         // Apply Sorting
@@ -115,6 +128,17 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
 
     return (
         <div className="min-h-screen max-w-7xl mx-auto px-4 md:px-8 pt-10">
+            {onBack && (
+                <div className="mb-8">
+                    <button
+                        onClick={onBack}
+                        className="group flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/5 border border-white/5 text-white hover:bg-white/10 hover:border-white/10 transition-all duration-300 backdrop-blur-sm"
+                    >
+                        <span className="material-symbols-outlined text-lg transition-transform group-hover:-translate-x-1">arrow_back</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em]">Back</span>
+                    </button>
+                </div>
+            )}
             <div className="flex flex-col lg:flex-row gap-14 items-start">
                 <aside className="hidden lg:block w-80 sticky top-32 h-[calc(100vh-160px)] overflow-y-auto no-scrollbar pr-4">
                     <div className="space-y-12">
@@ -325,8 +349,14 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                         ) : (
                             sortedAndFilteredProducts.map((product) => (
                                 <div key={product.id} onClick={() => onProductClick(product.id)} className="group relative bg-brand-card border border-white/5 rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 hover:border-brand-primary/40 hover:-translate-y-2 hover:shadow-card-hover flex flex-col h-full">
-                                    <div className="aspect-square bg-black/40 p-8 flex items-center justify-center">
+                                    <div className="aspect-square bg-black/40 p-8 flex items-center justify-center relative">
                                         <img src={product.image} alt={product.name} className="w-[85%] h-[85%] object-contain group-hover:scale-110 transition-all duration-700" />
+
+                                        {/* Favorite Button */}
+                                        <div className="absolute top-5 left-5 z-10 transition-transform duration-300 group-hover:scale-110">
+                                            <FavoriteButton productId={product.id} position="right" />
+                                        </div>
+
                                         {/* Status Badge */}
                                         {product.status && product.status !== 'AVAILABLE' && (
                                             <div className={`absolute top-5 right-5 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border backdrop-blur-md shadow-lg ${product.status === 'OUT_OF_STOCK' ? 'bg-red-500/20 text-red-500 border-red-500/30' :

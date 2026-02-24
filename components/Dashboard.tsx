@@ -281,7 +281,20 @@ export default function Dashboard({ initialTab = 'rentals' }: DashboardProps) {
                                         </div>
                                         <p className="text-sm text-brand-muted leading-relaxed max-w-md">
                                             {user?.kycStatus === 'approved'
-                                                ? 'Your identity is verified. You have full access to all rental features.'
+                                                ? (
+                                                    <div className="flex flex-col gap-1">
+                                                        <span>Your identity is verified. You have full access to all rental features.</span>
+                                                        {user.kycVerifiedDate && (
+                                                            <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest mt-1">
+                                                                VALID UNTIL: {(() => {
+                                                                    const d = new Date(user.kycVerifiedDate);
+                                                                    d.setMonth(d.getMonth() + 3);
+                                                                    return d.toLocaleDateString();
+                                                                })()}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )
                                                 : user?.kycStatus === 'pending'
                                                     ? 'Your documents are under review. This usually takes less than 24 hours.'
                                                     : user?.kycStatus === 'rejected'

@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Review } from "../lib/mockData";
 import { useStore } from "../lib/store";
 import Tooltip from "./Tooltip";
+import FavoriteButton from "./FavoriteButton";
+import ShareButton from "./ShareButton";
 
 interface ProductDetailsProps {
   productId: string;
@@ -26,13 +28,20 @@ export default function ProductDetails({ productId, context, onBack }: ProductDe
 
   const defaultMode: 'rent' | 'buy' = context || (product.type === 'buy' ? 'buy' : 'rent');
   const [purchaseMode, setPurchaseMode] = useState<'rent' | 'buy'>(defaultMode);
-  const [selectedTenure, setSelectedTenure] = useState(1);
+  const [selectedTenure, setSelectedTenure] = useState(product.rentalOptions?.[0]?.months || 1);
 
   const isModeRent = purchaseMode === 'rent';
   const selectedRentalOption = product.rentalOptions?.find(o => o.months === selectedTenure);
 
-  const buyPrice = product.buyPrice || product.price;
-  const basePrice = isModeRent && selectedRentalOption ? selectedRentalOption.price : buyPrice;
+  // Determine the purchase price (Buying)
+  const buyPrice = product.buyPrice || (product.type === 'buy' || product.type === 'rent_and_buy' ? product.price : product.price * 25);
+
+  // Determine the rental price (Monthly)
+  // If we are in rent mode, we use the selected tenure price. 
+  // If not in rent mode, but we need a "display" base price for the top, we use the buy price.
+  const basePrice = isModeRent
+    ? (selectedRentalOption?.price || product.price)
+    : buyPrice;
 
   const isInWishlist = wishlist.includes(product.id);
 
@@ -55,12 +64,18 @@ export default function ProductDetails({ productId, context, onBack }: ProductDe
       if (code === 'KYC_NOT_APPROVED') {
         setCartError('KYC verification required before renting. Please complete your identity verification.');
         setTimeout(() => window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } })), 1500);
+      } else if (code === 'KYC_EXPIRED') {
+        setCartError('Your KYC has expired (valid for 3 months). Please submit a new KYC to continue renting.');
+        setTimeout(() => window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } })), 2000);
+      } else if (code === 'KYC_LIMIT_REACHED') {
+        setCartError('You have reached the limit of 3 products per KYC. Please submit a new KYC to rent more products.');
+        setTimeout(() => window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } })), 2000);
       } else if (code === 'MAX_RENTALS_REACHED') {
         setCartError('You already have 3 active rentals. Return a device to rent another.');
       } else if (code === 'TENURE_EXCEEDED') {
         setCartError('Maximum rental duration is 3 months.');
       } else {
-        setCartError('Failed to add item. Please try again.');
+        setCartError(err?.message || 'Failed to add item. Please try again.');
       }
     }
   };
@@ -77,6 +92,17 @@ export default function ProductDetails({ productId, context, onBack }: ProductDe
 
   return (
     <div className="mx-auto max-w-7xl bg-brand-page min-h-screen">
+      {/* Prominent Back Button */}
+      <div className="px-4 md:px-8 pt-8">
+        <button
+          onClick={onBack}
+          className="group flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/5 border border-white/5 text-white hover:bg-white/10 hover:border-white/10 transition-all duration-300 backdrop-blur-sm"
+        >
+          <span className="material-symbols-outlined text-lg transition-transform group-hover:-translate-x-1">arrow_back</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Back</span>
+        </button>
+      </div>
+
       <div className="flex flex-col lg:flex-row px-4 md:px-8 pt-4 pb-12 gap-8">
         <div className="lg:w-[45%] flex flex-col">
           <div className="flex gap-4 mb-6">
@@ -153,7 +179,13 @@ export default function ProductDetails({ productId, context, onBack }: ProductDe
             )}
           </div>
 
-          <h2 className="text-3xl md:text-5xl font-bold text-white mb-2 tracking-tight">{product.name}</h2>
+          <div className="flex items-start justify-between gap-4 mb-2">
+            <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight">{product.name}</h2>
+            <div className="flex items-center gap-2 mt-2">
+              <FavoriteButton productId={product.id} position="left" className="scale-110" />
+              <ShareButton productId={product.id} productName={product.name} position="left" className="scale-110" />
+            </div>
+          </div>
 
           {/* Subtitle/Description */}
           <p className="text-lg text-white/60 font-medium mb-4 leading-relaxed">{product.subtitle}</p>
@@ -165,7 +197,9 @@ export default function ProductDetails({ productId, context, onBack }: ProductDe
           <div className="mb-8">
             <div className="flex items-baseline gap-4">
               <span className="text-4xl md:text-5xl font-bold text-white tracking-tight">₹{basePrice.toLocaleString()}</span>
-              {isModeRent && <span className="text-white/20 font-bold uppercase tracking-widest text-sm">/ month</span>}
+              <span className="text-white/40 font-black uppercase tracking-[0.2em] text-xs">
+                {isModeRent ? '/ Month' : 'Full Purchase'}
+              </span>
             </div>
           </div>
 
@@ -176,23 +210,35 @@ export default function ProductDetails({ productId, context, onBack }: ProductDe
                 <div className="flex gap-3 mb-10">
                   <button onClick={() => setPurchaseMode('buy')} className={`flex-1 p-4 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${purchaseMode === 'buy' ? 'bg-white text-black border-white' : 'bg-white/5 border-white/5 text-white/20'}`}>
                     <span className="text-[18px] font-bold">Buy Outright</span>
+                    <span className="text-xs font-medium opacity-60">₹{buyPrice.toLocaleString()}</span>
                   </button>
                   <button onClick={() => setPurchaseMode('rent')} className={`flex-1 p-4 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${purchaseMode === 'rent' ? 'bg-white text-black border-white' : 'bg-white/5 border-white/5 text-white/20'}`}>
                     <span className="text-[18px] font-bold">Monthly Rental</span>
+                    <span className="text-xs font-medium opacity-60">
+                      {product.rentalOptions && product.rentalOptions.length > 0
+                        ? `Starts at ₹${Math.min(...product.rentalOptions.map(o => o.price)).toLocaleString()}/mo`
+                        : 'Contact for pricing'}
+                    </span>
                   </button>
                 </div>
               )}
               {product.type === 'buy' && (
                 <div className="mb-10">
-                  <div className="p-4 rounded-xl border bg-white text-black border-white inline-flex items-center gap-2">
+                  <div className="p-4 rounded-xl border bg-white text-black border-white inline-flex flex-col items-center gap-1">
                     <span className="text-[18px] font-bold">Buy Outright</span>
+                    <span className="text-xs font-medium opacity-60">₹{buyPrice.toLocaleString()}</span>
                   </div>
                 </div>
               )}
               {product.type === 'rent' && (
                 <div className="mb-10">
-                  <div className="p-4 rounded-xl border bg-white text-black border-white inline-flex items-center gap-2">
+                  <div className="p-4 rounded-xl border bg-white text-black border-white inline-flex flex-col items-center gap-1">
                     <span className="text-[18px] font-bold">Monthly Rental</span>
+                    <span className="text-xs font-medium opacity-60">
+                      {product.rentalOptions && product.rentalOptions.length > 0
+                        ? `Starts at ₹${Math.min(...product.rentalOptions.map(o => o.price)).toLocaleString()}/mo`
+                        : 'Contact for pricing'}
+                    </span>
                   </div>
                 </div>
               )}

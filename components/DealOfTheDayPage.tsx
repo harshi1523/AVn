@@ -9,7 +9,7 @@ interface DealOfTheDayPageProps {
 export default function DealOfTheDayPage({ onNavigate }: DealOfTheDayPageProps) {
     const { addToCart } = useStore();
     const product = products.find(p => p.id === 'razer-blade-16');
-    
+
     // Countdown timer state
     const [timeLeft, setTimeLeft] = useState({ h: 4, m: 32, s: 15 });
 
@@ -28,24 +28,34 @@ export default function DealOfTheDayPage({ onNavigate }: DealOfTheDayPageProps) 
 
     if (!product) return null;
 
-    const handleProvision = () => {
-        addToCart(product.id, 'rent', 12);
+    const handleProvision = async () => {
+        try {
+            await addToCart(product.id, 'rent', 3); // Capped at 3 months now
+            onNavigate('cart');
+        } catch (err: any) {
+            const code = err?.message;
+            if (code === 'KYC_NOT_APPROVED' || code === 'KYC_EXPIRED' || code === 'KYC_LIMIT_REACHED') {
+                window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } }));
+            } else {
+                alert(err?.message || 'Failed to add item to cart.');
+            }
+        }
     };
 
     return (
         <div className="animate-in fade-in duration-700 bg-brand-page min-h-screen">
             {/* Immersive Hero Section */}
             <section className="relative h-[90vh] overflow-hidden flex items-center">
-                <img 
-                    src="https://images.unsplash.com/photo-1603481588273-2f908a9a7a1b?q=80&w=2000&auto=format&fit=crop" 
-                    className="absolute inset-0 w-full h-full object-cover brightness-[0.2] grayscale-[0.5]" 
+                <img
+                    src="https://images.unsplash.com/photo-1603481588273-2f908a9a7a1b?q=80&w=2000&auto=format&fit=crop"
+                    className="absolute inset-0 w-full h-full object-cover brightness-[0.2] grayscale-[0.5]"
                     alt="Razer Blade 16 Background"
                 />
                 <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-brand-page"></div>
-                
+
                 {/* HUD Elements */}
                 <div className="absolute top-10 left-10 text-brand-secondary/40 font-mono text-[10px] tracking-[0.5em] hidden lg:block">
-                    SYSTEM_ACCESS: GRANTED<br/>ENCRYPTION: ACTIVE<br/>NODE_STATUS: EXTREME_DEAL
+                    SYSTEM_ACCESS: GRANTED<br />ENCRYPTION: ACTIVE<br />NODE_STATUS: EXTREME_DEAL
                 </div>
 
                 <div className="max-w-7xl mx-auto px-6 relative z-10 grid lg:grid-cols-2 gap-20 items-center">
@@ -114,7 +124,7 @@ export default function DealOfTheDayPage({ onNavigate }: DealOfTheDayPageProps) 
                                 </div>
                             </div>
 
-                            <button 
+                            <button
                                 onClick={handleProvision}
                                 className="w-full bg-cta-gradient hover:brightness-110 text-white font-black py-7 rounded-3xl text-[11px] uppercase tracking-[0.5em] transition-all active:scale-95 shadow-glow flex items-center justify-center gap-4"
                             >
@@ -134,7 +144,7 @@ export default function DealOfTheDayPage({ onNavigate }: DealOfTheDayPageProps) 
                         <p className="text-gray-500 mb-16 text-lg font-light leading-relaxed">
                             The Razer Blade 16 is built for performance without compromise. Explore the architectural details that define the world's most powerful 16-inch gaming laptop.
                         </p>
-                        
+
                         <div className="grid sm:grid-cols-2 gap-8">
                             {[
                                 { t: 'Graphics Architecture', v: 'NVIDIA GeForce RTX 4080 (175W TGP)' },
@@ -149,7 +159,7 @@ export default function DealOfTheDayPage({ onNavigate }: DealOfTheDayPageProps) 
                             ))}
                         </div>
                     </div>
-                    
+
                     <div className="bg-brand-card border border-white/10 rounded-[3rem] p-12 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-white/[0.01] opacity-0 group-hover:opacity-100 transition-opacity"></div>
                         <h3 className="text-2xl font-display font-bold text-white mb-10 tracking-tight italic uppercase">Visual Protocol</h3>
@@ -173,10 +183,10 @@ export default function DealOfTheDayPage({ onNavigate }: DealOfTheDayPageProps) 
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div className="mt-16 pt-10 border-t border-white/5 flex items-center justify-between">
                             <div className="flex -space-x-3">
-                                {[1,2,3].map(i => (
+                                {[1, 2, 3].map(i => (
                                     <div key={i} className="w-10 h-10 rounded-full border-2 border-brand-card bg-gray-800"></div>
                                 ))}
                                 <div className="w-10 h-10 rounded-full border-2 border-brand-card bg-brand-secondary flex items-center justify-center text-[10px] font-black text-white">42+</div>
@@ -199,13 +209,13 @@ export default function DealOfTheDayPage({ onNavigate }: DealOfTheDayPageProps) 
                         Don't let legacy hardware throttle your creativity. Provision the Razer Blade 16 today and join the elite tier of digital operatives.
                     </p>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-8">
-                        <button 
+                        <button
                             onClick={handleProvision}
                             className="bg-white text-black font-black px-14 py-6 rounded-2xl text-[11px] uppercase tracking-[0.4em] hover:bg-gray-200 transition-all active:scale-95 shadow-2xl"
                         >
                             Provision Protocol
                         </button>
-                        <button 
+                        <button
                             onClick={() => onNavigate('listing', { category: 'Gaming' })}
                             className="text-[11px] font-black text-white/40 hover:text-white transition-all uppercase tracking-[0.5em] underline underline-offset-8 decoration-brand-secondary/30"
                         >

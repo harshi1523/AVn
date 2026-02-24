@@ -12,6 +12,7 @@ interface QuickViewModalProps {
 export default function QuickViewModal({ product, onClose, onNavigateToProduct }: QuickViewModalProps) {
   const { user, addToCart, toggleAuth } = useStore();
   const [selectedPlan, setSelectedPlan] = useState(0);
+  const [cartError, setCartError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
 
@@ -26,18 +27,34 @@ export default function QuickViewModal({ product, onClose, onNavigateToProduct }
     ? product.rentalOptions[selectedPlan].months
     : undefined;
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!user) {
       toggleAuth(true);
       return;
     }
+    setCartError(null);
     setIsAdding(true);
-    setTimeout(() => {
-      addToCart(product.id, isRental ? 'rent' : 'buy', currentTenure);
+    try {
+      await addToCart(product.id, isRental ? 'rent' : 'buy', currentTenure);
       setIsAdding(false);
       setJustAdded(true);
       setTimeout(() => setJustAdded(false), 2000);
-    }, 600);
+    } catch (err: any) {
+      setIsAdding(false);
+      const code = err?.message;
+      if (code === 'KYC_NOT_APPROVED' || code === 'KYC_EXPIRED' || code === 'KYC_LIMIT_REACHED') {
+        const msg = code === 'KYC_NOT_APPROVED' ? 'KYC required.' : code === 'KYC_EXPIRED' ? 'KYC Expired.' : 'Limit Reached.';
+        setCartError(msg);
+        setTimeout(() => {
+          onClose();
+          window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } }));
+        }, 1500);
+      } else if (code === 'MAX_RENTALS_REACHED') {
+        setCartError('3 active rentals max.');
+      } else {
+        setCartError(err?.message || 'Error');
+      }
+    }
   };
 
   return (
@@ -58,6 +75,13 @@ export default function QuickViewModal({ product, onClose, onNavigateToProduct }
             <h2 className="text-3xl font-display font-bold text-white mb-2">{product.name}</h2>
             <p className="text-white/40 text-sm">{product.subtitle}</p>
           </div>
+
+          {cartError && (
+            <div className="mb-4 p-3 bg-red-900/30 border border-red-500/40 rounded-xl text-red-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">error</span>
+              {cartError}
+            </div>
+          )}
 
           {isRental && product.rentalOptions && (
             <div className="mb-8">

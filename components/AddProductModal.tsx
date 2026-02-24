@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import { useStore } from "../lib/store";
 import { Product, ProductFeature, RentalOption } from "../lib/mockData";
 import { supabase } from "../lib/supabase"; // Use Supabase Storage
+import MultiSelectDropdown from "./MultiSelectDropdown";
+
+const presetCategories = ['Laptop', 'Desktop', 'Monitor', 'Tablet', 'Audio', 'Keyboards', 'Mice', 'Gaming', 'Accessories'];
+const presetBrands = ['Apple', 'Dell', 'HP', 'Lenovo', 'Asus', 'Acer', 'Razer', 'Logitech'];
 
 interface AddProductModalProps {
     onClose: () => void;
@@ -12,23 +16,60 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
     const { addProduct, updateProduct } = useStore();
     const [loading, setLoading] = useState(false);
     const [newFeature, setNewFeature] = useState<ProductFeature>({ title: '', description: '', icon: 'star' });
-    const [formData, setFormData] = useState<Partial<Product>>(productToEdit || {
-        availability: 'rent',
-        type: 'rent',
-        category: undefined,
-        brand: undefined,
-        condition: 'New',
-        status: 'AVAILABLE',
-        rating: 5,
-        reviews: 0,
-        image: '', // No default image
-        features: [],
-        rentalOptions: [],
-        deposit: 0,
-        buyPrice: 0,
-        isPublic: true // Default to visible for new products
+    const [formData, setFormData] = useState<Partial<Product>>(() => {
+        if (!productToEdit) return {
+            availability: 'rent',
+            type: 'rent',
+            category: '',
+            brand: '',
+            condition: 'New',
+            status: 'AVAILABLE',
+            rating: 5,
+            reviews: 0,
+            image: '',
+            features: [],
+            rentalOptions: [],
+            deposit: 0,
+            buyPrice: 0,
+            isPublic: true
+        };
+
+        const cat = typeof productToEdit.category === 'string' ? productToEdit.category : (Array.isArray(productToEdit.category) ? productToEdit.category[0] : '');
+        const normalizedCat = presetCategories.includes(cat) ? cat : (cat ? 'Other' : '');
+
+        const brand = typeof productToEdit.brand === 'string' ? productToEdit.brand : (Array.isArray(productToEdit.brand) ? productToEdit.brand[0] : '');
+        const normalizedBrand = presetBrands.includes(brand) ? brand : (brand ? 'Other' : '');
+
+        return {
+            ...productToEdit,
+            category: normalizedCat,
+            brand: normalizedBrand
+        };
     });
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+    // Custom "Other" Input State
+    const [customCategory, setCustomCategory] = useState('');
+    const [showOtherInput, setShowOtherInput] = useState(false);
+    const [customBrand, setCustomBrand] = useState('');
+    const [showOtherBrandInput, setShowOtherBrandInput] = useState(false);
+
+    useEffect(() => {
+        if (productToEdit?.category) {
+            const cat = typeof productToEdit.category === 'string' ? productToEdit.category : (Array.isArray(productToEdit.category) ? productToEdit.category[0] : '');
+            if (cat && !presetCategories.includes(cat)) {
+                setCustomCategory(cat);
+                setShowOtherInput(true);
+            }
+        }
+        if (productToEdit?.brand) {
+            const brand = typeof productToEdit.brand === 'string' ? productToEdit.brand : (Array.isArray(productToEdit.brand) ? productToEdit.brand[0] : '');
+            if (brand && !presetBrands.includes(brand)) {
+                setCustomBrand(brand);
+                setShowOtherBrandInput(true);
+            }
+        }
+    }, [productToEdit]);
 
     // Rental Option State
     const [newRentalOption, setNewRentalOption] = useState<RentalOption>({ months: 0, price: 0, label: '', discount: '' });
@@ -119,7 +160,7 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
             if (!formData.buyPrice || formData.buyPrice <= 0) newErrors.buyPrice = "Valid Selling Price is required";
         }
 
-        if (!formData.category || (Array.isArray(formData.category) && formData.category.length === 0)) newErrors.category = "At least one category is required";
+        if (!formData.category) newErrors.category = "Category is required";
         if (!formData.brand) newErrors.brand = "Brand is required";
 
         if (Object.keys(newErrors).length > 0) {
@@ -129,10 +170,28 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
         }
 
         try {
+            // Process Category
+            let finalCategory = formData.category;
+            if (finalCategory === 'Other') {
+                finalCategory = customCategory.trim();
+            }
+
+            // Process Brand
+            let finalBrand = formData.brand;
+            if (finalBrand === 'Other') {
+                finalBrand = customBrand.trim();
+            }
+
+            const finalData = {
+                ...formData,
+                category: finalCategory,
+                brand: finalBrand
+            };
+
             if (productToEdit) {
-                await updateProduct({ ...productToEdit, ...formData } as Product);
+                await updateProduct({ ...productToEdit, ...finalData } as Product);
             } else {
-                await addProduct(formData as Omit<Product, 'id'>);
+                await addProduct(finalData as Omit<Product, 'id'>);
             }
             onClose();
         } catch (error: any) {
@@ -146,7 +205,7 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar bg-brand-card rounded-[2rem] shadow-2xl border border-brand-border p-8 animate-in zoom-in-95 duration-300">
+            <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar bg-brand-card rounded-none shadow-2xl border border-brand-border p-8 animate-in zoom-in-95 duration-300">
                 <div className="flex justify-between items-center mb-8">
                     <h2 className="text-2xl font-display font-bold text-white">
                         {productToEdit ? 'Edit Product' : 'Add New Product'}
@@ -250,55 +309,71 @@ export default function AddProductModal({ onClose, productToEdit }: AddProductMo
                                 <option value="both" style={{ backgroundColor: 'white', color: 'black' }}>Both (Buy & Rent)</option>
                             </select>
                         </div>
-                        <div className="space-y-4">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Categories (Select Various)</label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                {['Laptop', 'Desktop', 'Monitor', 'Tablet', 'Audio', 'Keyboards', 'Mice', 'Gaming', 'Accessories'].map((cat) => {
-                                    const currentCategories = Array.isArray(formData.category) ? formData.category : (formData.category ? [formData.category] : []);
-                                    const isSelected = currentCategories.includes(cat as any);
-                                    return (
-                                        <button
-                                            key={cat}
-                                            type="button"
-                                            onClick={() => {
-                                                const newCategories = isSelected
-                                                    ? currentCategories.filter(c => c !== cat)
-                                                    : [...currentCategories, cat as any];
-                                                setFormData(prev => ({ ...prev, category: newCategories }));
-                                                if (errors.category) setErrors({ ...errors, category: '' });
-                                            }}
-                                            className={`px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 border ${isSelected
-                                                ? 'bg-brand-primary/20 border-brand-primary text-brand-primary'
-                                                : 'bg-black/40 border-brand-border text-gray-500 hover:border-white/20'
-                                                }`}
-                                        >
-                                            {cat}
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Category</label>
+                            <select
+                                name="category"
+                                value={formData.category || ''}
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    setFormData(prev => ({ ...prev, category: value }));
+                                    setShowOtherInput(value === 'Other');
+                                    if (errors.category) setErrors({ ...errors, category: '' });
+                                }}
+                                className={`w-full bg-black/40 border ${errors.category ? 'border-red-500' : 'border-brand-border'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm`}
+                            >
+                                <option value="" disabled style={{ backgroundColor: '#1A1A1A', color: 'gray' }}>Select Category</option>
+                                {presetCategories.map(cat => (
+                                    <option key={cat} value={cat} style={{ backgroundColor: '#1A1A1A', color: 'white' }}>{cat}</option>
+                                ))}
+                                <option value="Other" style={{ backgroundColor: '#1A1A1A', color: 'white' }}>Other</option>
+                            </select>
                             {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
+
+                            {showOtherInput && (
+                                <div className="space-y-2 animate-in slide-in-from-top-2 duration-200 mt-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1 text-brand-primary">Custom Category Name</label>
+                                    <input
+                                        value={customCategory}
+                                        onChange={(e) => setCustomCategory(e.target.value)}
+                                        className="w-full bg-black/40 border border-brand-primary/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
+                                        placeholder="Type custom category..."
+                                    />
+                                </div>
+                            )}
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Brand</label>
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Brand</label>
                             <select
                                 name="brand"
                                 value={formData.brand || ''}
                                 onChange={(e) => {
-                                    handleChange(e);
+                                    const value = e.target.value;
+                                    setFormData(prev => ({ ...prev, brand: value }));
+                                    setShowOtherBrandInput(value === 'Other');
                                     if (errors.brand) setErrors({ ...errors, brand: '' });
                                 }}
                                 className={`w-full bg-black/40 border ${errors.brand ? 'border-red-500' : 'border-brand-border'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm`}
                             >
-                                <option value="" disabled style={{ backgroundColor: 'white', color: 'gray' }}>Select Brand</option>
-                                <option value="Apple" style={{ backgroundColor: 'white', color: 'black' }}>Apple</option>
-                                <option value="Dell" style={{ backgroundColor: 'white', color: 'black' }}>Dell</option>
-                                <option value="HP" style={{ backgroundColor: 'white', color: 'black' }}>HP</option>
-                                <option value="Lenovo" style={{ backgroundColor: 'white', color: 'black' }}>Lenovo</option>
-                                <option value="Asus" style={{ backgroundColor: 'white', color: 'black' }}>Asus</option>
-                                <option value="Generic" style={{ backgroundColor: 'white', color: 'black' }}>Other</option>
+                                <option value="" disabled style={{ backgroundColor: '#1A1A1A', color: 'gray' }}>Select Brand</option>
+                                {presetBrands.map(brand => (
+                                    <option key={brand} value={brand} style={{ backgroundColor: '#1A1A1A', color: 'white' }}>{brand}</option>
+                                ))}
+                                <option value="Other" style={{ backgroundColor: '#1A1A1A', color: 'white' }}>Other</option>
                             </select>
                             {errors.brand && <p className="text-red-500 text-xs mt-1">{errors.brand}</p>}
+
+                            {showOtherBrandInput && (
+                                <div className="space-y-2 animate-in slide-in-from-top-2 duration-200 mt-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1 text-brand-primary">Custom Brand Name</label>
+                                    <input
+                                        value={customBrand}
+                                        onChange={(e) => setCustomBrand(e.target.value)}
+                                        className="w-full bg-black/40 border border-brand-primary/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-primary transition-all text-sm"
+                                        placeholder="Type custom brand..."
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
 

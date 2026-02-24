@@ -3,8 +3,8 @@ import { useStore } from '../lib/store';
 export const useCart = () => {
   const { cart, addToCart, removeFromCart, updateQuantity } = useStore();
 
-  const addItem = (productId: string, type: 'rent' | 'buy', tenure?: number) => {
-    addToCart(productId, type, tenure);
+  const addItem = async (productId: string, type: 'rent' | 'buy', tenure?: number) => {
+    await addToCart(productId, type, tenure);
   };
 
   const removeItem = (cartItemId: string) => {

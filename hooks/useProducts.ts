@@ -7,7 +7,10 @@ export const useProducts = () => {
 
   const getProductsByCategory = (category: string) => {
     if (category === 'All') return products;
-    return products.filter(p => p.category === category);
+    return products.filter(p => {
+      const categories = Array.isArray(p.category) ? p.category : (p.category ? [p.category] : []);
+      return categories.includes(category as any);
+    });
   };
 
   return {

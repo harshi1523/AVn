@@ -159,7 +159,7 @@ export default function Home({ onNavigate }: HomeProps) {
         <h3 className="avn-heading">For Your Budget</h3>
         <p className="text-gray-500 text-sm mb-12">Find the perfect device that fits your financial plan.</p>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 relative h-96 rounded-3xl-custom overflow-hidden bg-brand-card border border-white/10 group cursor-pointer" onClick={() => onNavigate('listing')}>
+          <div className="lg:col-span-2 relative h-96 rounded-3xl-custom overflow-hidden bg-brand-card border border-white/10 group cursor-pointer" onClick={() => onNavigate('listing', { priceRange: 'low' })}>
             <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-black"></div>
             <div className="absolute inset-0 p-16 flex flex-col justify-center items-start text-left">
               <span className="bg-green-600/20 text-green-400 px-3 py-1 rounded-lg text-[9px] font-bold uppercase tracking-widest mb-4">Budget Friendly</span>
@@ -168,11 +168,11 @@ export default function Home({ onNavigate }: HomeProps) {
             </div>
           </div>
           <div className="flex flex-col gap-8">
-            <div className="relative h-44 rounded-3xl-custom overflow-hidden bg-red-900/10 border border-white/10 p-10 flex flex-col justify-end items-start text-left group cursor-pointer">
+            <div className="relative h-44 rounded-3xl-custom overflow-hidden bg-red-900/10 border border-white/10 p-10 flex flex-col justify-end items-start text-left group cursor-pointer" onClick={() => onNavigate('listing', { priceRange: 'mid' })}>
               <span className="bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest mb-2">Mid-Grade</span>
               <h4 className="text-3xl font-bold text-white tracking-tight">₹1,200 - ₹2,500 <span className="text-xs text-gray-500 font-medium">/mo</span></h4>
             </div>
-            <div className="relative h-44 rounded-3xl-custom overflow-hidden bg-purple-900/10 border border-white/10 p-10 flex flex-col justify-end items-start text-left group cursor-pointer">
+            <div className="relative h-44 rounded-3xl-custom overflow-hidden bg-purple-900/10 border border-white/10 p-10 flex flex-col justify-end items-start text-left group cursor-pointer" onClick={() => onNavigate('listing', { priceRange: 'high' })}>
               <span className="bg-purple-600/20 text-purple-400 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest mb-2">Pro Grade</span>
               <h4 className="text-3xl font-bold text-white tracking-tight">₹2,500+ <span className="text-xs text-gray-500 font-medium">/mo</span></h4>
             </div>
