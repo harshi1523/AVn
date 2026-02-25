@@ -12,7 +12,7 @@ export default function CartDrawer({ onCheckout }: CartDrawerProps) {
 
   if (!isCartOpen) return null;
 
-  const total = cart.reduce((acc, item) => acc + item.price, 0);
+  const total = React.useMemo(() => cart.reduce((acc, item) => acc + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0), [cart]);
 
   return (
     <div className="fixed inset-0 z-[60] flex justify-end">

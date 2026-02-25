@@ -68,16 +68,16 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
         </div>
     );
 
-    // Calculations
-    const subtotal = cart.reduce((acc, item) => acc + item.price, 0);
-    const deposit = cart.filter(item => item.type === 'rent').length * 200;
-    const shipping = 0; // Free
-    const packingFee = 86; // From screenshot example
-    const discount = 3000; // Example fixed discount to match screenshot style or calc real one?
-    const taxRate = 0.085;
-    const tax = subtotal * taxRate;
-    // Total for payment logic (keeping existing logic for actual payment processing)
-    const totalToPay = subtotal + deposit + shipping + tax;
+    // Unified Calculations for reactive updates
+    const totalItems = React.useMemo(() => cart.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0), [cart]);
+    const subtotal = React.useMemo(() => cart.reduce((acc, item) => acc + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0), [cart]);
+    const deposit = React.useMemo(() => cart.filter(item => item.type === 'rent').reduce((acc, item) => acc + (5000 * (Number(item.quantity) || 0)), 0), [cart]);
+    const shipping = 0;
+    const packingFee = React.useMemo(() => totalItems * 86, [totalItems]);
+    const discount = React.useMemo(() => totalItems * 3000, [totalItems]);
+    const taxRate = 0.18; // Standardized to 18% as per CartPage.tsx
+    const tax = React.useMemo(() => subtotal * taxRate, [subtotal]);
+    const totalToPay = React.useMemo(() => (subtotal + deposit + shipping + packingFee + tax) - discount, [subtotal, deposit, shipping, packingFee, tax, discount]);
 
 
     const handleContinue = async () => {
@@ -338,12 +338,12 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
 
                                 <div className="flex items-baseline gap-2 mb-2">
                                     <span className="text-xs text-green-600 font-bold">10% Off</span>
-                                    <span className="text-gray-400 text-sm line-through">₹{(item.price * 1.1).toFixed(0)}</span>
-                                    <span className="text-xl font-bold text-gray-900">₹{item.price.toLocaleString()}</span>
+                                    <span className="text-gray-400 text-sm line-through">₹{(item.price * 1.1 * item.quantity).toFixed(0)}</span>
+                                    <span className="text-xl font-bold text-gray-900">₹{(item.price * item.quantity).toLocaleString()}</span>
                                 </div>
 
                                 <div className="flex items-center gap-1 text-xs text-gray-900 mb-4">
-                                    <span>+ ₹{packingFee} Protect Promise Fee</span>
+                                    <span>+ ₹{86 * item.quantity} Protect Promise Fee</span>
                                     <span className="material-symbols-outlined text-gray-400 text-[14px]">info</span>
                                 </div>
 
@@ -393,15 +393,6 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                     </div>
                 </div>
 
-                {/* PROCEED TO PAYMENT BUTTON (Bottom of list) */}
-                <div className="bg-white p-4 rounded shadow-sm border border-gray-100 flex justify-end">
-                    <button
-                        onClick={handleContinue}
-                        className="bg-orange-500 text-white font-bold py-4 px-12 rounded-sm shadow-md uppercase text-sm tracking-wide hover:bg-orange-600 transition-all duration-200"
-                    >
-                        Proceed to Payment
-                    </button>
-                </div>
 
             </div>
 
@@ -413,7 +404,7 @@ export default function Checkout({ onSuccess, onBack }: CheckoutProps) {
                     </div>
                     <div className="p-4 space-y-4">
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-900">Price ({cart.length} item)</span>
+                            <span className="text-gray-900">Price ({totalItems} {totalItems === 1 ? 'item' : 'items'})</span>
                             <span className="text-gray-900">₹{subtotal.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between text-sm">

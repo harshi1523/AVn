@@ -37,7 +37,7 @@ const BRAND_METADATA: Record<string, { logo: string; banner: string; desc: strin
     },
     'HP': {
         logo: 'https://upload.wikimedia.org/wikipedia/commons/a/ad/HP_logo_2012.svg',
-        banner: 'https://images.unsplash.com/photo-1544006659-f0b21f04cb1d?auto=format&fit=crop',
+        banner: 'https://sl.bing.net/bGuYwvvHPDU',
         desc: 'Innovation that works for you. Leading the way with sustainable and powerful computing.'
     }
 };

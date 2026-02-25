@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Product } from "../lib/mockData";
 import { useStore } from "../lib/store";
 import Tooltip from "./Tooltip";
@@ -25,6 +25,28 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
     const [selectedCondition, setSelectedCondition] = useState<'New' | 'Refurbished' | 'All'>(refurbishedOnly ? 'Refurbished' : 'All');
     const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
     const [sortBy, setSortBy] = useState<'popularity' | 'price-low' | 'price-high' | 'newest'>('popularity');
+    const [isSortOpen, setIsSortOpen] = useState(false);
+    const sortDropdownRef = useRef<HTMLDivElement>(null);
+
+    const sortOptions = [
+        { label: 'Popularity', value: 'popularity' as const },
+        { label: 'Price -- Low to High', value: 'price-low' as const },
+        { label: 'Price -- High to Low', value: 'price-high' as const },
+        { label: 'Newest First', value: 'newest' as const }
+    ];
+
+    const currentSortLabel = sortOptions.find(opt => opt.value === sortBy)?.label || 'Popularity';
+
+    // Close sort dropdown on outside click
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
+                setIsSortOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     useEffect(() => {
         setIsLoading(true);
@@ -119,11 +141,8 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
         { label: 'All Products', value: 'All', icon: 'grid_view' },
         { label: 'Laptops', value: 'Laptop', icon: 'laptop_mac' },
         { label: 'Desktops', value: 'Desktop', icon: 'desktop_windows' },
-        { label: 'Monitors', value: 'Monitor', icon: 'monitor' },
-        { label: 'Keyboards', value: 'Keyboards', icon: 'keyboard' },
-        { label: 'Mice', value: 'Mice', icon: 'mouse' },
         { label: 'Gaming', value: 'Gaming', icon: 'sports_esports' },
-        { label: 'Audio', value: 'Audio', icon: 'headphones' }
+        { label: 'Accessories', value: 'Accessories', icon: 'keyboard' }
     ];
 
     return (
@@ -163,41 +182,6 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                             </div>
                         </div>
 
-                        {/* Brand Section */}
-                        <div>
-                            <div className="flex items-center justify-between mb-7">
-                                <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">Brands</h3>
-                                {selectedBrands.length > 0 && (
-                                    <button
-                                        onClick={() => setSelectedBrands([])}
-                                        className="text-[10px] font-black text-brand-primary uppercase tracking-widest hover:text-white transition-colors"
-                                    >
-                                        Clear
-                                    </button>
-                                )}
-                            </div>
-                            <div className="flex flex-col gap-4">
-                                {availableBrands.map(brand => (
-                                    <label key={brand} className="flex items-center gap-3 cursor-pointer group">
-                                        <div className="relative flex items-center justify-center">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedBrands.includes(brand)}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) setSelectedBrands(prev => [...prev, brand]);
-                                                    else setSelectedBrands(prev => prev.filter(b => b !== brand));
-                                                }}
-                                                className="peer appearance-none w-5 h-5 border border-white/10 rounded-md bg-white/5 checked:bg-brand-primary checked:border-brand-primary transition-all duration-300"
-                                            />
-                                            <span className="material-symbols-outlined absolute text-[14px] text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none">check</span>
-                                        </div>
-                                        <span className={`text-[11px] font-black uppercase tracking-widest transition-colors ${selectedBrands.includes(brand) ? 'text-white' : 'text-white/40 group-hover:text-white'}`}>
-                                            {brand}
-                                        </span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
 
                         {/* Rent or Buy Section */}
                         <div>
@@ -220,6 +204,7 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                                 })}
                             </div>
                         </div>
+
                     </div>
                 </aside>
 
@@ -238,92 +223,104 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                     </nav>
 
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 pb-6 border-b border-white/5">
-                        <div className="space-y-1">
+                        <div className="flex-1 space-y-1">
                             <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
                                 {favoritesOnly ? 'Wishlist' : (category === 'All' ? 'Full Collection' : `${category} Collection`)}
                             </h2>
-                            <p className="text-[11px] font-black text-brand-muted uppercase tracking-[0.3em]">Showing {sortedAndFilteredProducts.length} Results</p>
                         </div>
 
-                        {/* Desktop Sort Options */}
-                        <div className="hidden md:flex items-center gap-8">
-                            <span className="text-[10px] font-black text-brand-muted uppercase tracking-widest">Sort By</span>
-                            <div className="flex items-center gap-6">
-                                {[
-                                    { label: 'Popularity', value: 'popularity' },
-                                    { label: 'Price -- Low to High', value: 'price-low' },
-                                    { label: 'Price -- High to Low', value: 'price-high' },
-                                    { label: 'Newest First', value: 'newest' }
-                                ].map((opt) => (
-                                    <button
-                                        key={opt.value}
-                                        onClick={() => setSortBy(opt.value as any)}
-                                        className={`text-[10px] font-black uppercase tracking-widest transition-all relative py-2 ${sortBy === opt.value ? 'text-brand-primary' : 'text-white/40 hover:text-white'
-                                            }`}
-                                    >
-                                        {opt.label}
-                                        {sortBy === opt.value && (
-                                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-primary rounded-full shadow-glow" />
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                        {/* Desktop Sort Dropdown */}
+                        <div className="hidden md:block w-72" ref={sortDropdownRef}>
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsSortOpen(!isSortOpen)}
+                                    className={`w-full bg-brand-card border ${isSortOpen ? 'border-brand-primary' : 'border-white/10'} rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white flex items-center justify-between hover:bg-white/5 transition-all duration-300`}
+                                >
+                                    <div className="flex flex-col items-start gap-0.5">
+                                        <span className="text-[8px] text-brand-muted tracking-[0.2em]">Sort By</span>
+                                        <span>{currentSortLabel}</span>
+                                    </div>
+                                    <span className={`material-symbols-outlined text-[20px] transition-transform duration-300 ${isSortOpen ? 'rotate-180' : ''}`}>expand_more</span>
+                                </button>
 
-                        {/* Mobile Brand Filter */}
-                        <div className="md:hidden space-y-4">
-                            <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black text-brand-muted uppercase tracking-widest">Filter By Brand</span>
-                                {selectedBrands.length > 0 && (
-                                    <button
-                                        onClick={() => setSelectedBrands([])}
-                                        className="text-[10px] font-black text-brand-primary uppercase tracking-widest"
-                                    >
-                                        Clear ({selectedBrands.length})
-                                    </button>
+                                {isSortOpen && (
+                                    <div className="absolute z-[40] w-full mt-2 bg-[#1A1A1A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 backdrop-blur-md">
+                                        <div className="p-2 space-y-1">
+                                            {sortOptions.map(opt => (
+                                                <div
+                                                    key={opt.value}
+                                                    onClick={() => {
+                                                        setSortBy(opt.value);
+                                                        setIsSortOpen(false);
+                                                    }}
+                                                    className={`px-5 py-4 rounded-xl cursor-pointer transition-all duration-200 text-[10px] font-black uppercase tracking-widest ${sortBy === opt.value
+                                                        ? 'bg-brand-primary/10 text-brand-primary'
+                                                        : 'text-white/40 hover:bg-white/5 hover:text-white'
+                                                        }`}
+                                                >
+                                                    {opt.label}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 )}
                             </div>
-                            <div className="flex flex-wrap gap-2">
-                                {availableBrands.map(brand => {
-                                    const isSelected = selectedBrands.includes(brand);
-                                    return (
-                                        <button
-                                            key={brand}
-                                            onClick={() => {
-                                                if (isSelected) setSelectedBrands(prev => prev.filter(b => b !== brand));
-                                                else setSelectedBrands(prev => [...prev, brand]);
-                                            }}
-                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all duration-300 ${isSelected
-                                                ? 'bg-brand-primary border-brand-primary text-white'
-                                                : 'bg-brand-card border-white/5 text-white/40 hover:border-white/20'
-                                                }`}
-                                        >
-                                            {brand}
-                                        </button>
-                                    );
-                                })}
-                            </div>
                         </div>
 
-                        {/* Mobile Sort Dropdown */}
-                        <div className="md:hidden space-y-2">
-                            <span className="text-[10px] font-black text-brand-muted uppercase tracking-widest block">Sort By</span>
-                            <div className="relative">
-                                <select
-                                    value={sortBy}
-                                    onChange={(e) => setSortBy(e.target.value as any)}
-                                    className="w-full bg-brand-card border border-white/10 rounded-2xl px-5 py-4 text-[11px] font-black uppercase tracking-widest text-white focus:outline-none focus:border-brand-primary transition-all appearance-none"
+                    </div>
+
+                    {/* Mobile Brand Filter */}
+                    <div className="md:hidden space-y-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black text-brand-muted uppercase tracking-widest">Filter By Brand</span>
+                            {selectedBrands.length > 0 && (
+                                <button
+                                    onClick={() => setSelectedBrands([])}
+                                    className="text-[10px] font-black text-brand-primary uppercase tracking-widest"
                                 >
-                                    <option value="popularity">Popularity</option>
-                                    <option value="price-low">Price -- Low to High</option>
-                                    <option value="price-high">Price -- High to Low</option>
-                                    <option value="newest">Newest First</option>
-                                </select>
-                                <span className="material-symbols-outlined absolute right-5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none">expand_more</span>
-                            </div>
+                                    Clear ({selectedBrands.length})
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {availableBrands.map(brand => {
+                                const isSelected = selectedBrands.includes(brand);
+                                return (
+                                    <button
+                                        key={brand}
+                                        onClick={() => {
+                                            if (isSelected) setSelectedBrands(prev => prev.filter(b => b !== brand));
+                                            else setSelectedBrands(prev => [...prev, brand]);
+                                        }}
+                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all duration-300 ${isSelected
+                                            ? 'bg-brand-primary border-brand-primary text-white'
+                                            : 'bg-brand-card border-white/5 text-white/40 hover:border-white/20'
+                                            }`}
+                                    >
+                                        {brand}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
+                    {/* Mobile Sort Dropdown */}
+                    <div className="md:hidden space-y-2">
+                        <span className="text-[10px] font-black text-brand-muted uppercase tracking-widest block">Sort By</span>
+                        <div className="relative">
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value as any)}
+                                className="w-full bg-brand-card border border-white/10 rounded-2xl px-5 py-4 text-[11px] font-black uppercase tracking-widest text-white focus:outline-none focus:border-brand-primary transition-all appearance-none"
+                            >
+                                <option value="popularity">Popularity</option>
+                                <option value="price-low">Price -- Low to High</option>
+                                <option value="price-high">Price -- High to Low</option>
+                                <option value="newest">Newest First</option>
+                            </select>
+                            <span className="material-symbols-outlined absolute right-5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none">expand_more</span>
+                        </div>
+                    </div>
                     <div className="grid grid-cols-2 xl:grid-cols-3 gap-7 mb-12">
                         {sortedAndFilteredProducts.length === 0 ? (
                             <div className="col-span-full py-32 text-center bg-brand-card/50 border border-white/5 rounded-[3rem] backdrop-blur-sm animate-in fade-in zoom-in duration-700">
@@ -331,9 +328,6 @@ export default function Listing({ category = 'All', type, searchQuery, favorites
                                     <span className="material-symbols-outlined text-5xl text-brand-primary animate-pulse">inventory_2</span>
                                 </div>
                                 <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-4 italic">No matching products</h3>
-                                <p className="text-brand-muted text-[11px] font-black uppercase tracking-[0.3em] max-w-sm mx-auto mb-10 leading-relaxed">
-                                    Your current filter selection returned zero results. Try adjusting your parameters.
-                                </p>
                                 <button
                                     onClick={() => {
                                         setSelectedBrands([]);

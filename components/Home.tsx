@@ -33,7 +33,7 @@ export default function Home({ onNavigate }: HomeProps) {
     { name: 'Dell', img: 'https://images.unsplash.com/photo-1593642702821-c8da6771f0c6?q=80&w=600&auto=format&fit=crop', slogan: 'Power Your Future' },
     { name: 'Asus', img: 'https://images.unsplash.com/photo-1603481588273-2f908a9a7a1b?q=80&w=600&auto=format&fit=crop', slogan: 'In Search of Incredible' },
     { name: 'Lenovo', img: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=600&auto=format&fit=crop', slogan: 'Smarter Tech for All' },
-    { name: 'HP', img: 'https://images.unsplash.com/photo-1544006659-f0b21f04cb1d?q=80&w=600&auto=format&fit=crop', slogan: 'Keep Reinventing' },
+    { name: 'HP', img: 'https://sl.bing.net/bGuYwvvHPDU', slogan: 'Keep Reinventing' },
     { name: 'Razer', img: 'https://images.unsplash.com/photo-1603481588273-2f908a9a7a1b?q=80&w=600&auto=format&fit=crop', slogan: 'For Gamers. By Gamers.' },
   ];
 

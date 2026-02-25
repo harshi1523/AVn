@@ -28,6 +28,7 @@ import SearchOverlay from "./components/SearchOverlay";
 import VideoGenerator from "./components/VideoGenerator";
 
 function AppContent() {
+  const { user } = useStore();
   const [currentView, setCurrentView] = useState('home');
   const [viewParams, setViewParams] = useState<any>({});
   const [scrolled, setScrolled] = useState(false);
@@ -75,7 +76,7 @@ function AppContent() {
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-brand-primary/5 rounded-full blur-[160px]" />
       </div>
 
-      {currentView !== 'kyc' && (
+      {currentView !== 'kyc' && !(user?.role === 'admin' && currentView === 'dashboard') && (
         <Navbar
           onNavigate={navigate}
           onOpenSearch={() => setIsSearchOpen(true)}
@@ -92,7 +93,7 @@ function AppContent() {
         onNavigate={navigate}
       />
 
-      <main className={`flex-1 relative ${currentView === 'kyc' ? 'pt-0' : 'pt-24'} pb-12`}>
+      <main className={`flex-1 relative ${(currentView === 'kyc' || (user?.role === 'admin' && currentView === 'dashboard')) ? 'pt-0' : 'pt-24'} pb-12`}>
         {currentView === 'home' && <Home onNavigate={navigate} />}
         {currentView === 'listing' && (
           <Listing

@@ -8,10 +8,10 @@ interface CartPageProps {
 export default function CartPage({ onNavigate }: CartPageProps) {
   const { cart, removeFromCart, updateQuantity, updateTenure } = useStore();
 
-  const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const deposit = cart.filter(item => item.type === 'rent').reduce((acc, item) => acc + (5000 * item.quantity), 0);
+  const subtotal = React.useMemo(() => cart.reduce((acc, item) => acc + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0), [cart]);
+  const deposit = React.useMemo(() => cart.filter(item => item.type === 'rent').reduce((acc, item) => acc + (5000 * (Number(item.quantity) || 0)), 0), [cart]);
   const tax = subtotal * 0.18; // 18% GST
-  const total = subtotal + deposit + tax;
+  const total = React.useMemo(() => subtotal + deposit + tax, [subtotal, deposit, tax]);
 
   if (cart.length === 0) {
     return (
@@ -138,7 +138,7 @@ export default function CartPage({ onNavigate }: CartPageProps) {
 
           <button
             onClick={() => onNavigate('listing')}
-            className="mt-12 group flex items-center gap-3 text-gray-500 hover:text-white transition-all font-black text-[10px] uppercase tracking-[0.4em]"
+            className="mt-12 group flex items-center gap-3 text-white transition-all font-black text-[10px] uppercase tracking-[0.4em]"
           >
             <span className="material-symbols-outlined text-sm group-hover:-translate-x-1 transition-transform">arrow_back</span>
             Continue Shopping

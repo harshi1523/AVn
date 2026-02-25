@@ -148,11 +148,11 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="bg-brand-page lg:h-screen lg:overflow-hidden font-display">
+    <div className="bg-brand-page h-screen flex overflow-hidden font-display">
       {/* Mobile Menu Toggle */}
       <button
         onClick={() => setIsMobileMenuOpen(true)}
-        className="lg:hidden fixed top-6 left-6 z-[60] w-12 h-12 glass-card rounded-xl flex items-center justify-center text-white shadow-lg border border-white/10"
+        className="lg:hidden fixed top-3 left-4 z-[60] w-12 h-12 glass-card rounded-xl flex items-center justify-center text-white shadow-lg border border-white/10"
       >
         <span className="material-symbols-outlined">menu</span>
       </button>
@@ -165,77 +165,112 @@ export default function AdminDashboard() {
         />
       )}
 
-      <div className="flex h-full">
-        {/* Sidebar container */}
+      <div className="flex h-full w-full relative">
+        {/* Sidebar container - Fixed Architecture */}
         <aside className={`
-          fixed inset-y-0 left-0 z-[55] w-[280px] lg:w-80 h-[100dvh] transform transition-all duration-500 ease-in-out lg:translate-x-0 p-6 flex flex-col
+          fixed inset-y-0 left-0 z-[55] w-[280px] lg:w-[320px] h-screen transform transition-all duration-500 ease-in-out p-4 lg:p-6 flex flex-col overflow-hidden
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
-          <div className="h-full glass-card rounded-[2.5rem] p-8 flex flex-col shadow-elevated border border-white/5 relative overflow-hidden">
+          <div className="h-full glass-card rounded-[2.5rem] flex flex-col shadow-elevated border border-white/5 relative overflow-hidden bg-brand-page/40 backdrop-blur-2xl">
             {/* Glossy highlight effect */}
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
 
             <button
               onClick={() => setIsMobileMenuOpen(false)}
-              className="lg:hidden absolute top-6 right-6 text-gray-400 hover:text-white transition-colors"
+              className="lg:hidden absolute top-6 right-6 z-20 text-gray-400 hover:text-white transition-colors"
             >
               <span className="material-symbols-outlined">close</span>
             </button>
 
-            <div className="flex items-center gap-4 mb-14 relative z-10">
-              <div className="w-14 h-14 rounded-2xl bg-brand-primary flex items-center justify-center text-white font-black text-2xl shadow-glow border border-white/20 ring-4 ring-brand-primary/10">
-                V
+            {/* Fixed Header Section inside Sidebar */}
+            <div className="flex-shrink-0 p-8 pb-4 relative z-10">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-brand-primary/20 flex items-center justify-center p-1.5 border border-brand-primary/20">
+                  <svg viewBox="0 0 100 100" className="w-full h-full text-brand-primary fill-current">
+                    {[0, 36, 72, 108, 144, 180, 216, 252, 288, 324].map((deg) => (
+                      <ellipse
+                        key={deg}
+                        cx="50" cy="22" rx="7" ry="16"
+                        transform={`rotate(${deg} 50 50)`}
+                      />
+                    ))}
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-white font-bold text-lg tracking-tight leading-tight">AvN Tech</h3>
+                  <p className="text-[8px] text-brand-primary font-black uppercase tracking-[0.4em]">Solution</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-white font-black text-sm uppercase tracking-wider">AvN Admin</h3>
-                <p className="text-[8px] text-brand-primary font-black uppercase tracking-[0.4em] mt-1">Control Center</p>
-              </div>
+              <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent mt-6"></div>
             </div>
 
-            <nav className="flex flex-col gap-3 relative z-10 custom-scrollbar overflow-y-auto pr-2 -mr-2 flex-1">
-              {[
-                { id: 'overview', label: 'Overview', icon: 'grid_view' },
-                { id: 'inventory', icon: 'inventory_2', label: 'Inventory' },
-                { id: 'orders', icon: 'local_shipping', label: 'Orders' },
-                { id: 'financials', icon: 'payments', label: 'Financials' },
-                { id: 'users', icon: 'group', label: 'Users & KYC' },
-                { id: 'support', icon: 'confirmation_number', label: 'Support' }
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => { setActiveTab(tab.id as any); setIsMobileMenuOpen(false); }}
-                  className={`group flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] uppercase tracking-[0.2em] font-black transition-all duration-300 relative overflow-hidden ${activeTab === tab.id
-                    ? 'bg-white text-black shadow-elevated scale-105'
-                    : 'text-gray-400 hover:text-white hover:bg-white/5'
-                    }`}
-                >
-                  <span className={`material-symbols-outlined text-[20px] transition-transform duration-300 ${activeTab === tab.id ? 'scale-110' : 'group-hover:scale-110'}`}>
-                    {tab.icon}
-                  </span>
-                  {tab.label}
-                  {activeTab === tab.id && (
-                    <div className="absolute left-0 w-1 h-1/2 bg-brand-primary rounded-full hidden"></div>
-                  )}
-                </button>
-              ))}
-            </nav>
+            {/* Scrollable Navigation Menu Section */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 pt-0 relative z-10">
+              <nav className="space-y-1">
+                {[
+                  { id: 'overview', label: 'Overview', icon: 'grid_view' },
+                  { id: 'inventory', icon: 'inventory_2', label: 'Inventory' },
+                  { id: 'orders', icon: 'local_shipping', label: 'Orders' },
+                  { id: 'financials', icon: 'payments', label: 'Financials' },
+                  { id: 'users', icon: 'group', label: 'Users & KYC' },
+                  { id: 'support', icon: 'confirmation_number', label: 'Support' }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => { setActiveTab(tab.id as any); setIsMobileMenuOpen(false); }}
+                    className={`group flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] uppercase tracking-[0.2em] font-black transition-all duration-300 relative overflow-hidden ${activeTab === tab.id
+                      ? 'bg-white text-black shadow-elevated scale-105'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                  >
+                    <span className={`material-symbols-outlined text-[20px] transition-transform duration-300 ${activeTab === tab.id ? 'scale-110' : 'group-hover:scale-110'}`}>
+                      {tab.icon}
+                    </span>
+                    {tab.label}
+                    {activeTab === tab.id && (
+                      <div className="absolute left-0 w-1 h-1/2 bg-brand-primary rounded-full hidden"></div>
+                    )}
+                  </button>
+                ))}
+              </nav>
+            </div>
 
-            <div className="mt-8 pt-8 border-t border-white/5 relative z-10">
+            {/* Sidebar Footer Section (Optional fixed bottom) */}
+            <div className="flex-shrink-0 p-6 pt-2 relative z-10 border-t border-white/5">
               <button
                 onClick={logout}
-                className="w-full bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white py-5 rounded-2xl text-[9px] font-black uppercase tracking-[0.3em] transition-all duration-500 flex items-center justify-center gap-3 group"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-400 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
               >
-                <span className="material-symbols-outlined text-[18px] group-hover:rotate-12 transition-transform">logout</span>
-                Logout Session
+                <span className="material-symbols-outlined text-xl">logout</span>
+                Sign Out
               </button>
             </div>
           </div>
         </aside>
 
-        {/* Main Content Area */}
-        <main className="flex-1 h-full overflow-y-auto custom-scrollbar p-6 lg:p-10 lg:ml-80 lg:pl-4 scroll-smooth">
+        {/* Mobile Sticky Header */}
+        <div className="lg:hidden fixed top-0 left-0 right-0 z-[45] flex items-center justify-between px-6 py-4 bg-brand-page/95 backdrop-blur-xl border-b border-white/5">
+          <div className="w-8" /> {/* spacer for menu button */}
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-brand-primary/20 flex items-center justify-center p-1 border border-brand-primary/20">
+              <svg viewBox="0 0 100 100" className="w-full h-full text-brand-primary fill-current">
+                {[0, 36, 72, 108, 144, 180, 216, 252, 288, 324].map((deg) => (
+                  <ellipse key={deg} cx="50" cy="22" rx="7" ry="16" transform={`rotate(${deg} 50 50)`} />
+                ))}
+              </svg>
+            </div>
+            <div>
+              <span className="text-white font-bold text-sm leading-none">AvN Tech</span>
+              <p className="text-[7px] text-brand-primary font-black uppercase tracking-[0.4em]">Solution</p>
+            </div>
+          </div>
+          <div className="w-8" />
+        </div>
+
+        {/* Main Content Area - Offset for Fixed Sidebar */}
+        <main className="flex-1 h-screen overflow-y-auto custom-scrollbar p-4 pt-6 lg:p-10 lg:ml-[320px] scroll-smooth">
           <div className="max-w-[1400px] mx-auto">
-            <header className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-12 gap-8 sticky top-0 z-40 py-4 lg:py-0 bg-brand-page/80 backdrop-blur-xl lg:backdrop-blur-none -mt-4 lg:mt-0 border-b border-white/5 lg:border-none lg:bg-transparent lg:static">
+            <header className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-12 gap-8 py-4 lg:py-0">
               <div>
                 <h1 className="text-4xl lg:text-6xl font-black text-white tracking-tighter capitalize flex items-center gap-4">
                   <span className="text-brand-primary">AvN</span> {activeTab}
