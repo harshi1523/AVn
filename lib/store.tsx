@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { products as initialProducts, Product } from './mockData';
 import { createAndUploadInvoice } from './invoice';
 import { GoogleGenAI } from "@google/genai";
@@ -96,11 +96,13 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
   });
 
   // --- SESSION TIMEOUT LOGIC ---
-  const [lastActivity, setLastActivity] = useState(Date.now());
+  const lastActivityRef = React.useRef(Date.now());
   const TIMEOUT_DURATION = 120 * 60 * 1000; // 120 minutes
 
   useEffect(() => {
-    const handleActivity = () => setLastActivity(Date.now());
+    const handleActivity = () => {
+      lastActivityRef.current = Date.now();
+    };
 
     // throttle activity updates to avoid excessive state changes? 
     // For simplicity, just updating state is fine, React batches it.
@@ -121,12 +123,34 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     };
   }, []);
 
+  const logout = useCallback(async () => {
+    try {
+      await signOut(auth);
+      // Clear State
+      setUser(null);
+      setCart([]);
+      setOrders([]);
+      setTickets([]);
+      setWishlist([]);
+      setNotifications([]);
+
+      // Clear Storage
+      localStorage.clear();
+      sessionStorage.clear();
+
+      const event = new CustomEvent('navigate', { detail: { view: 'home' } });
+      window.dispatchEvent(event);
+    } catch (error) {
+      console.error("Logout Error:", error);
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) return; // Only track timeout for logged-in users
 
     const interval = setInterval(() => {
       const now = Date.now();
-      if (now - lastActivity > TIMEOUT_DURATION) {
+      if (now - lastActivityRef.current > TIMEOUT_DURATION) {
         // Session expired
         logout();
         alert("Session expired. Please login again.");
@@ -136,7 +160,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     }, 60000); // Check every minute
 
     return () => clearInterval(interval);
-  }, [user, lastActivity, TIMEOUT_DURATION]); // dependency on lastActivity might cause interval reset often.
+  }, [user, logout]);
   // Better approach: Use a Ref for lastActivity to avoid resetting interval, or just let it reset (it's fine).
   // actually, if we include lastActivity in dependency, the interval resets on every mousemove. That's inefficient.
   // Let's use a Ref for the timestamp.
@@ -353,7 +377,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       // Fetch user role
@@ -364,7 +388,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     } catch (err: any) {
       return { success: false, message: 'Password or Email Incorrect' };
     }
-  };
+  }, [auth, db, setIsAuthOpen]);
 
   const sendWelcomeEmail = async (user: User) => {
     const apiKey = process.env.API_KEY;
@@ -390,7 +414,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     }
   };
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = useCallback(async () => {
     try {
       const provider = new GoogleAuthProvider();
       const userCredential = await signInWithPopup(auth, provider);
@@ -439,9 +463,9 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     } catch (err: any) {
       return { success: false, message: err.message };
     }
-  };
+  }, [auth, db, setIsAuthOpen, sendWelcomeEmail]);
 
-  const signup = async (name: string, email: string, password: string) => {
+  const signup = useCallback(async (name: string, email: string, password: string) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await updateAuthProfile(userCredential.user, { displayName: name });
@@ -464,9 +488,9 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     } catch (err: any) {
       return { success: false, message: err.message };
     }
-  };
+  }, [auth, db, setIsAuthOpen, sendWelcomeEmail, updateAuthProfile]);
 
-  const resetPassword = async (email: string) => {
+  const resetPassword = useCallback(async (email: string) => {
     console.log("Attempting to reset password for:", email);
     try {
       await sendPasswordResetEmail(auth, email);
@@ -480,9 +504,9 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       }
       return { success: false, message: err.message };
     }
-  };
+  }, [auth]);
 
-  const addProduct = async (productData: Omit<Product, 'id'>) => {
+  const addProduct = useCallback(async (productData: Omit<Product, 'id'>) => {
     try {
       const newId = Math.random().toString(36).substr(2, 9);
       const newProduct: Product = { ...productData, id: newId };
@@ -495,9 +519,9 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       setProducts(prev => prev.filter(p => p.id !== (productData as any).id));
       throw error;
     }
-  };
+  }, [db, setProducts]);
 
-  const updateProduct = async (product: Product) => {
+  const updateProduct = useCallback(async (product: Product) => {
     // Optimistic update: update immediately, Firestore confirms in background
     const prevProducts = products;
     setProducts(prev => prev.map(p => p.id === product.id ? product : p));
@@ -510,9 +534,9 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       setProducts(prevProducts);
       throw error;
     }
-  };
+  }, [db, products, setProducts]);
 
-  const deleteProduct = async (id: string) => {
+  const deleteProduct = useCallback(async (id: string) => {
     try {
       // 1. Get Product Data (to find images)
       const productRef = doc(db, 'products', id);
@@ -550,29 +574,8 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       console.error("Error deleting product:", error);
       throw error;
     }
-  };
+  }, [db]);
 
-  const logout = async () => {
-    try {
-      await signOut(auth);
-      // Clear State
-      setUser(null);
-      setCart([]);
-      setOrders([]);
-      setTickets([]);
-      setWishlist([]);
-      setNotifications([]);
-
-      // Clear Storage
-      localStorage.clear();
-      sessionStorage.clear();
-
-      const event = new CustomEvent('navigate', { detail: { view: 'home' } });
-      window.dispatchEvent(event);
-    } catch (error) {
-      console.error("Logout Error:", error);
-    }
-  };
 
   const syncUserField = async (field: string, data: any) => {
     if (!user) return;
@@ -623,18 +626,13 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     return { valid: true };
   };
 
-  const addToCart = async (productId: string, type: 'rent' | 'buy', tenure?: number, variants?: CartItem['variants'], warranty?: CartItem['warranty']) => {
+  const addToCart = useCallback(async (productId: string, type: 'rent' | 'buy', tenure?: number, variants?: CartItem['variants'], warranty?: CartItem['warranty']) => {
     if (!user) { setIsAuthOpen(true); return; }
 
     // --- RENTAL BUSINESS RULE CHECKS ---
     if (type === 'rent') {
-      const kycCheck = isKYCValid(user);
-      if (!kycCheck.valid) {
-        if (kycCheck.reason === 'NOT_APPROVED') throw new Error('KYC_NOT_APPROVED');
-        if (kycCheck.reason === 'EXPIRED') throw new Error('KYC_EXPIRED');
-        if (kycCheck.reason === 'LIMIT_REACHED') throw new Error('KYC_LIMIT_REACHED');
-      }
-
+      // Deferring KYC validation to checkout stage as per user request.
+      // We still keep the tenure check as it is a hard limit for the rental selection.
       if (tenure && tenure > MAX_RENTAL_MONTHS) {
         throw new Error('TENURE_EXCEEDED');
       }
@@ -650,6 +648,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
         })
         .reduce((acc, order) => acc + order.items.filter(i => i.type === 'rent').reduce((q, item) => q + item.quantity, 0), 0);
 
+      // We still keep the limit check here to guide the user.
       if (ordersRentalCount + cartRentalCount >= MAX_RENTAL_PRODUCTS) {
         throw new Error('KYC_LIMIT_REACHED');
       }
@@ -676,9 +675,9 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     setCart(updatedCart); // Update local state immediately
     await syncUserField('cart', updatedCart);
     setIsCartOpen(true);
-  };
+  }, [user, products, cart, setIsAuthOpen, isKYCValid, MAX_RENTAL_MONTHS, MAX_RENTAL_PRODUCTS, syncUserField, setIsCartOpen]);
 
-  const updateQuantity = async (cartItemId: string, delta: number) => {
+  const updateQuantity = useCallback(async (cartItemId: string, delta: number) => {
     const updatedCart = cart.map(item => {
       if (item.id === cartItemId) {
         const newQty = Math.max(1, item.quantity + delta);
@@ -688,7 +687,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     });
     setCart(updatedCart); // Update local state
     await syncUserField('cart', updatedCart);
-  };
+  }, [cart, syncUserField]);
 
   const updateTenure = async (cartItemId: string, newTenure: number) => {
     const updatedCart = cart.map(item => {
@@ -712,13 +711,13 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
     await syncUserField('cart', updatedCart);
   };
 
-  const removeFromCart = async (cartItemId: string) => {
+  const removeFromCart = useCallback(async (cartItemId: string) => {
     const updatedCart = cart.filter(item => item.id !== cartItemId);
     setCart(updatedCart); // Update local state
     await syncUserField('cart', updatedCart);
-  };
+  }, [cart, syncUserField]);
 
-  const placeOrder = async (address: string, paymentMethod: string, totalOverride?: number, rentalDetails?: { start?: string, end?: string, deposit?: number, method?: 'pickup' | 'delivery' }) => {
+  const placeOrder = useCallback(async (address: string, paymentMethod: string, totalOverride?: number, rentalDetails?: { start?: string, end?: string, deposit?: number, method?: 'pickup' | 'delivery' }) => {
     if (!user) return;
 
     const rentalItems = cart.filter(i => i.type === 'rent');
@@ -795,7 +794,7 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
         id: newOrder.id,
         orderId: newOrder.id,
         userId: user.id,
-        userName: user.name,
+        userName: newOrder.userName,
         amount: newOrder.total,
         type: 'income',
         date: newOrder.date,
@@ -830,539 +829,233 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       console.error("❌ Error placing order:", err);
       throw err;
     }
-  };
+  }, [user, cart, orders, isKYCValid, MAX_RENTAL_PRODUCTS, MAX_RENTAL_MONTHS, createAndUploadInvoice, db, arrayUnion, setCart, setUser, generateAIEmail]);
 
-  const addTicket = async (subject: string, description: string) => {
+  const addTicket = useCallback(async (subject: string, description: string) => {
     if (!user) return;
-
     const timestamp = new Date().toISOString();
-    const initialMessage: any = {
-      id: Math.random().toString(36).substr(2, 9),
-      senderId: user.id,
-      senderName: user.name,
-      senderRole: 'user',
-      message: description,
-      timestamp: timestamp,
-    };
-
-    const newTicket: Ticket = {
-      id: `TIC-${Math.floor(Math.random() * 10000)}`,
-      userId: user.id,
-      subject,
-      description,
-      status: 'Open',
-      priority: 'Medium',
-      date: new Date().toISOString().split('T')[0],
-      lastUpdated: timestamp,
-      userName: user.name,
-      customerEmail: user.email,
-      messages: [initialMessage],
-    };
-
+    const initialMessage: any = { id: Math.random().toString(36).substr(2, 9), senderId: user.id, senderName: user.name, senderRole: 'user', message: description, timestamp: timestamp };
+    const newTicket: Ticket = { id: `TIC-${Math.floor(Math.random() * 10000)}`, userId: user.id, subject, description, status: 'Open', priority: 'Medium', date: new Date().toISOString().split('T')[0], lastUpdated: timestamp, userName: user.name, customerEmail: user.email, messages: [initialMessage] };
     const updatedTickets = [newTicket, ...tickets];
     await syncUserField('tickets', updatedTickets);
-  };
+  }, [user, tickets, syncUserField]);
 
-  const addTicketMessage = async (ticketId: string, message: string, updateStatus?: Ticket['status']) => {
+  const addTicketMessage = useCallback(async (ticketId: string, message: string, updateStatus?: Ticket['status']) => {
     if (!user) return;
-
     const timestamp = new Date().toISOString();
-    const newMessage: any = {
-      id: Math.random().toString(36).substr(2, 9),
-      senderId: user.id,
-      senderName: user.name,
-      senderRole: user.role || 'admin',
-      message: message,
-      timestamp: timestamp,
-    };
-
-    // Find the ticket owner and update their ticket
+    const newMessage: any = { id: Math.random().toString(36).substr(2, 9), senderId: user.id, senderName: user.name, senderRole: user.role || 'admin', message: message, timestamp: timestamp };
     for (const targetUser of allUsers) {
       const ticketIndex = targetUser.tickets?.findIndex(t => t.id === ticketId);
       if (ticketIndex !== undefined && ticketIndex >= 0 && targetUser.tickets) {
-        const updatedTicket = {
-          ...targetUser.tickets[ticketIndex],
-          messages: [...targetUser.tickets[ticketIndex].messages, newMessage],
-          lastUpdated: timestamp,
-          ...(updateStatus && { status: updateStatus }),
-        };
-
+        const updatedTicket = { ...targetUser.tickets[ticketIndex], messages: [...targetUser.tickets[ticketIndex].messages, newMessage], lastUpdated: timestamp, ...(updateStatus && { status: updateStatus }) };
         const updatedTickets = [...targetUser.tickets];
         updatedTickets[ticketIndex] = updatedTicket;
-
-        const userDocRef = doc(db, 'users', targetUser.id);
-        await updateDoc(userDocRef, { tickets: updatedTickets });
+        await updateDoc(doc(db, 'users', targetUser.id), { tickets: updatedTickets });
         break;
       }
     }
-  };
+  }, [user, allUsers]);
 
-  const updateTicketPriority = async (ticketId: string, priority: Ticket['priority']) => {
-    if (!user) return;
-
-    // Find the ticket owner and update priority
+  const updateTicketPriority = useCallback(async (ticketId: string, priority: Ticket['priority']) => {
     for (const targetUser of allUsers) {
       const ticketIndex = targetUser.tickets?.findIndex(t => t.id === ticketId);
       if (ticketIndex !== undefined && ticketIndex >= 0 && targetUser.tickets) {
-        const updatedTicket = {
-          ...targetUser.tickets[ticketIndex],
-          priority: priority,
-          lastUpdated: new Date().toISOString(),
-        };
-
         const updatedTickets = [...targetUser.tickets];
-        updatedTickets[ticketIndex] = updatedTicket;
-
-        const userDocRef = doc(db, 'users', targetUser.id);
-        await updateDoc(userDocRef, { tickets: updatedTickets });
+        updatedTickets[ticketIndex] = { ...targetUser.tickets[ticketIndex], priority: priority, lastUpdated: new Date().toISOString() };
+        await updateDoc(doc(db, 'users', targetUser.id), { tickets: updatedTickets });
         break;
       }
     }
-  };
+  }, [allUsers]);
 
-  const assignTicket = async (ticketId: string, adminId: string, adminName: string) => {
-    if (!user) return;
-
-    // Find the ticket owner and assign admin
+  const assignTicket = useCallback(async (ticketId: string, adminId: string, adminName: string) => {
     for (const targetUser of allUsers) {
       const ticketIndex = targetUser.tickets?.findIndex(t => t.id === ticketId);
       if (ticketIndex !== undefined && ticketIndex >= 0 && targetUser.tickets) {
-        const updatedTicket = {
-          ...targetUser.tickets[ticketIndex],
-          assignedTo: adminId,
-          assignedToName: adminName,
-          lastUpdated: new Date().toISOString(),
-        };
-
         const updatedTickets = [...targetUser.tickets];
-        updatedTickets[ticketIndex] = updatedTicket;
-
-        const userDocRef = doc(db, 'users', targetUser.id);
-        await updateDoc(userDocRef, { tickets: updatedTickets });
+        updatedTickets[ticketIndex] = { ...targetUser.tickets[ticketIndex], assignedTo: adminId, assignedToName: adminName, lastUpdated: new Date().toISOString() };
+        await updateDoc(doc(db, 'users', targetUser.id), { tickets: updatedTickets });
         break;
       }
     }
-  };
+  }, [allUsers]);
 
-  const toggleWishlist = async (productId: string) => {
-    if (!user) { setIsAuthOpen(true); return; }
-    const updatedWishlist = wishlist.includes(productId)
-      ? wishlist.filter(id => id !== productId)
-      : [...wishlist, productId];
-    await syncUserField('wishlist', updatedWishlist);
-  };
-
-  const addAddress = async (addr: Omit<Address, 'id'>) => {
+  const addAddress = useCallback(async (addr: Omit<Address, 'id'>) => {
     if (!user) return;
-    const newAddr: Address = {
-      ...addr,
-      id: Math.random().toString(36).substr(2, 9),
-      // Auto-set as default if this is the first address
-      isDefault: (user.addresses || []).length === 0 ? true : (addr.isDefault || false)
-    };
+    const newAddr: Address = { ...addr, id: Math.random().toString(36).substr(2, 9), isDefault: (user.addresses || []).length === 0 ? true : (addr.isDefault || false) };
     const updatedAddresses = [...(user.addresses || []), newAddr];
-    const userDocRef = doc(db, 'users', user.id);
-    await updateDoc(userDocRef, { addresses: updatedAddresses });
+    await updateDoc(doc(db, 'users', user.id), { addresses: updatedAddresses });
     setUser(prev => prev ? { ...prev, addresses: updatedAddresses } : null);
-    return newAddr.id; // Return the new address ID
-  };
+    return newAddr.id;
+  }, [user]);
 
-
-  const updateAddress = async (id: string, updates: Partial<Address>) => {
+  const updateAddress = useCallback(async (id: string, updates: Partial<Address>) => {
     if (!user) return;
-    const updatedAddresses = (user.addresses || []).map(a =>
-      a.id === id ? { ...a, ...updates } : a
-    );
-    const userDocRef = doc(db, 'users', user.id);
-    await updateDoc(userDocRef, { addresses: updatedAddresses });
-    setUser(prev => prev ? { ...prev, addresses: updatedAddresses } : null);
-  };
+    const updated = (user.addresses || []).map(a => a.id === id ? { ...a, ...updates } : a);
+    await updateDoc(doc(db, 'users', user.id), { addresses: updated });
+    setUser(prev => prev ? { ...prev, addresses: updated } : null);
+  }, [user]);
 
-  const setDefaultAddress = async (id: string) => {
+  const setDefaultAddress = useCallback(async (id: string) => {
     if (!user) return;
-    // Set selected address as default, unset others
-    const updatedAddresses = (user.addresses || []).map(a => ({
-      ...a,
-      isDefault: a.id === id
-    }));
-    const userDocRef = doc(db, 'users', user.id);
-    await updateDoc(userDocRef, { addresses: updatedAddresses });
-    setUser(prev => prev ? { ...prev, addresses: updatedAddresses } : null);
-  };
+    const updated = (user.addresses || []).map(a => ({ ...a, isDefault: a.id === id }));
+    await updateDoc(doc(db, 'users', user.id), { addresses: updated });
+    setUser(prev => prev ? { ...prev, addresses: updated } : null);
+  }, [user]);
 
-  const removeAddress = async (id: string) => {
+  const removeAddress = useCallback(async (id: string) => {
     if (!user) return;
-
-    // Check if trying to delete default address
-    const addressToDelete = user.addresses?.find(a => a.id === id);
-    if (addressToDelete?.isDefault && (user.addresses || []).length > 1) {
-      throw new Error('Cannot delete default address. Please set another address as default first.');
-    }
-
     const updatedAddresses = (user.addresses || []).filter(a => a.id !== id);
-    const userDocRef = doc(db, 'users', user.id);
-    await updateDoc(userDocRef, { addresses: updatedAddresses });
+    await updateDoc(doc(db, 'users', user.id), { addresses: updatedAddresses });
     setUser(prev => prev ? { ...prev, addresses: updatedAddresses } : null);
-  };
+  }, [user]);
 
-  const updateOrderStatus = async (orderId: string, status: Order['status'], trackingInfo?: Order['trackingInfo']) => {
-    // 1. Try to find/update in allUsers (Admin scenario)
+  const updateTicketStatus = useCallback(async (ticketId: string, status: Ticket['status']) => {
+    for (const u of allUsers) {
+      if (u.tickets?.some(t => t.id === ticketId)) {
+        const updated = u.tickets.map(t => t.id === ticketId ? { ...t, status } : t);
+        setAllUsers(prev => prev.map(user => user.id === u.id ? { ...user, tickets: updated } : user));
+        await updateDoc(doc(db, 'users', u.id), { tickets: updated });
+        return;
+      }
+    }
+  }, [allUsers]);
+
+  const updateUserStatus = useCallback(async (userId: string, status: 'active' | 'suspended') => {
+    setAllUsers(prev => prev.map(user => user.id === userId ? { ...user, accountStatus: status } : user));
+    await updateDoc(doc(db, 'users', userId), { accountStatus: status });
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    if (!user) return;
+    const docSnap = await getDoc(doc(db, 'users', user.id));
+    if (docSnap.exists()) {
+      setUser(prev => prev ? { ...prev, ...docSnap.data(), id: prev.id } : (docSnap.data() as User));
+    }
+  }, [user]);
+
+  const savePendingCheckout = useCallback(async (details: User['pendingCheckout']) => {
+    if (!user) return;
+    await updateDoc(doc(db, 'users', user.id), { pendingCheckout: details });
+    setUser(prev => prev ? { ...prev, pendingCheckout: details } : null);
+  }, [user]);
+
+  const updateRentalPreferences = useCallback(async (prefs: User['rentalPreferences']) => {
+    if (!user) return;
+    await updateDoc(doc(db, 'users', user.id), { rentalPreferences: prefs });
+    setUser(prev => prev ? { ...prev, rentalPreferences: prefs } : null);
+  }, [user]);
+
+  const updateProfile = useCallback(async (details: Partial<User>) => {
+    if (!user) return;
+    await updateDoc(doc(db, 'users', user.id), JSON.parse(JSON.stringify(details)));
+    setUser(prev => prev ? { ...prev, ...details } : null);
+    if (details.name || details.avatar) await updateAuthProfile(auth.currentUser!, { displayName: details.name || user.name, photoURL: details.avatar || user.avatar });
+  }, [user, auth.currentUser]);
+
+  const updateEmailAddress = useCallback(async (newEmail: string) => {
+    if (!auth.currentUser || !user) return;
+    await updateEmail(auth.currentUser, newEmail);
+    await updateDoc(doc(db, 'users', user.id), { email: newEmail });
+    setUser(prev => prev ? { ...prev, email: newEmail } : null);
+  }, [user, auth.currentUser]);
+
+  const dismissNotification = useCallback((id: string) => { setNotifications(prev => prev.filter(n => n.id !== id)); }, []);
+
+  const updateOrderStatus = useCallback(async (orderId: string, status: Order['status'], trackingInfo?: Order['trackingInfo']) => {
     for (const u of allUsers) {
       if (u.orders?.some(o => o.id === orderId)) {
         const updatedOrders = u.orders.map(o => {
           if (o.id === orderId) {
             const newTimeline = o.timeline || [];
-            newTimeline.push({
-              status,
-              date: new Date().toISOString(),
-              note: trackingInfo ? `Tracking: ${trackingInfo.courier} - ${trackingInfo.trackingNumber}` : undefined
-            });
-
-            return {
-              ...o,
-              status,
-              timeline: newTimeline,
-              trackingInfo: trackingInfo || o.trackingInfo
-            };
+            newTimeline.push({ status, date: new Date().toISOString(), note: trackingInfo ? `Tracking: ${trackingInfo.courier} - ${trackingInfo.trackingNumber}` : undefined });
+            return { ...o, status, timeline: newTimeline, trackingInfo: trackingInfo || o.trackingInfo };
           }
           return o;
         });
-
-        // Optimistic State Update for Admin
         setAllUsers(prev => prev.map(user => user.id === u.id ? { ...user, orders: updatedOrders } : user));
-
-        // Sanitize for Firestore persistence (removal of undefined keys)
-        const sanitizedOrders = JSON.parse(JSON.stringify(updatedOrders));
-
-        // Update Firestore
-        const userDocRef = doc(db, 'users', u.id);
-        await updateDoc(userDocRef, { orders: sanitizedOrders });
-
-        // Generate Email Notification via AI
+        await updateDoc(doc(db, 'users', u.id), { orders: JSON.parse(JSON.stringify(updatedOrders)) });
         const order = u.orders.find(o => o.id === orderId);
         if (order) generateAIEmail({ ...order, status, trackingInfo }, 'update');
         return;
       }
     }
-
-    // 2. If not found in allUsers, check current user (User scenario)
     if (user && user.orders?.some(o => o.id === orderId)) {
       const updatedOrders = user.orders.map(o => {
         if (o.id === orderId) {
           const newTimeline = o.timeline || [];
-          newTimeline.push({
-            status,
-            date: new Date().toISOString(),
-            note: trackingInfo ? `Tracking: ${trackingInfo.courier} - ${trackingInfo.trackingNumber}` : undefined
-          });
-
-          return {
-            ...o,
-            status,
-            timeline: newTimeline,
-            trackingInfo: trackingInfo || o.trackingInfo
-          };
+          newTimeline.push({ status, date: new Date().toISOString(), note: trackingInfo ? `Tracking: ${trackingInfo.courier} - ${trackingInfo.trackingNumber}` : undefined });
+          return { ...o, status, timeline: newTimeline, trackingInfo: trackingInfo || o.trackingInfo };
         }
         return o;
       });
-
-      // Optimistic Update
       setOrders(updatedOrders);
       setUser({ ...user, orders: updatedOrders });
-
-      // Firestore Update
-      const sanitizedOrders = JSON.parse(JSON.stringify(updatedOrders));
-      const userDocRef = doc(db, 'users', user.id);
-      await updateDoc(userDocRef, { orders: sanitizedOrders });
-
-      // Email logic
+      await updateDoc(doc(db, 'users', user.id), { orders: JSON.parse(JSON.stringify(updatedOrders)) });
       const order = user.orders.find(o => o.id === orderId);
       if (order) generateAIEmail({ ...order, status, trackingInfo }, 'update');
-      return;
     }
+  }, [allUsers, user]);
 
-    console.error("Order not found for update:", orderId);
-  };
-
-  const updateOrderNotes = async (orderId: string, notes: Order['internalNotes']) => {
-    for (const u of allUsers) {
-      if (u.orders?.some(o => o.id === orderId)) {
-        const updatedOrders = u.orders.map(o => o.id === orderId ? { ...o, internalNotes: notes } : o);
-
-        // Optimistic State Update for Admin
-        setAllUsers(prev => prev.map(user => user.id === u.id ? { ...user, orders: updatedOrders } : user));
-
-        // Sanitize for Firestore persistence
-        const sanitizedOrders = JSON.parse(JSON.stringify(updatedOrders));
-
-        const userDocRef = doc(db, 'users', u.id);
-        await updateDoc(userDocRef, { orders: sanitizedOrders });
-        return;
-      }
-    }
-  };
-
-  const updateTicketStatus = async (ticketId: string, status: Ticket['status']) => {
-    for (const u of allUsers) {
-      if (u.tickets?.some(t => t.id === ticketId)) {
-        const updatedTickets = u.tickets.map(t => t.id === ticketId ? { ...t, status } : t);
-        setAllUsers(prev => prev.map(user => user.id === u.id ? { ...user, tickets: updatedTickets } : user));
-        const userDocRef = doc(db, 'users', u.id);
-        await updateDoc(userDocRef, { tickets: updatedTickets });
-        return;
-      }
-    }
-    console.error("Ticket not found for update:", ticketId);
-  };
-
-  const updateUserStatus = async (userId: string, status: 'active' | 'suspended') => {
-    setAllUsers(prev => prev.map(user => user.id === userId ? { ...user, accountStatus: status } : user));
+  const updateKYCStatus = useCallback(async (userId: string, status: User['kycStatus'], documents?: User['kycDocuments'], reason?: string) => {
     const userDocRef = doc(db, 'users', userId);
-    await updateDoc(userDocRef, { accountStatus: status });
-  };
-
-  const refreshProfile = async () => {
-    if (!user) return;
-    console.log("Manual Profile Refresh Triggered");
-    const userDocRef = doc(db, 'users', user.id);
-    const docSnap = await getDoc(userDocRef);
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      setUser(prev => prev ? { ...prev, ...data, id: prev.id } : (data as User));
-      console.log("Profile Refreshed. New Status:", data.kycStatus);
-    }
-  };
-
-  const updateKYCStatus = async (userId: string, status: User['kycStatus'], documents?: User['kycDocuments'], reason?: string) => {
-    const userDocRef = doc(db, 'users', userId);
-
-    // Fetch current user data to get existing history
     const targetUserSnap = await getDoc(userDocRef);
-    if (!targetUserSnap.exists()) {
-      console.error("User not found:", userId);
-      return;
-    }
+    if (!targetUserSnap.exists()) return;
     const targetUser = targetUserSnap.data() as User;
-
-    // Create update object
     const updateData: any = { kycStatus: status };
     if (documents) updateData.kycDocuments = documents;
-
-    // Log Admin Action and Timestamp
     if (status === 'approved' || status === 'rejected') {
       updateData.kycVerifiedDate = new Date().toISOString();
-      if (user?.id) updateData.kycVerifiedBy = user.id; // Log the admin who performed the action
+      if (user?.id) updateData.kycVerifiedBy = user.id;
     }
-
     if (reason) updateData.kycRejectionReason = reason;
-
-    // --- KYC HISTORY TRACKING ---
-    const historyEntry: any = {
-      id: Math.random().toString(36).substr(2, 9),
-      action: status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'submitted',
-      status: status || 'pending',
-      timestamp: new Date().toISOString(),
-    };
-
-    // Add admin details for approval/rejection
+    const historyEntry: any = { id: Math.random().toString(36).substr(2, 9), action: status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'submitted', status: status || 'pending', timestamp: new Date().toISOString() };
     if (status === 'approved' || status === 'rejected') {
-      if (user?.id) {
-        historyEntry.adminId = user.id;
-        historyEntry.adminName = user.name;
-      }
+      if (user?.id) { historyEntry.adminId = user.id; historyEntry.adminName = user.name; }
     }
-
-    // Add rejection reason to history
-    if (reason) {
-      historyEntry.reason = reason;
-    }
-
-    // Archive document references in history
-    if (targetUser.kycDocuments) {
-      historyEntry.documents = { ...targetUser.kycDocuments };
-    }
-
-    // Initialize or append to history
+    if (reason) historyEntry.reason = reason;
+    if (targetUser.kycDocuments) historyEntry.documents = { ...targetUser.kycDocuments };
     const existingHistory = targetUser.kycHistory || [];
     updateData.kycHistory = [...existingHistory, historyEntry];
 
-    // --- AUTOMATIC ORDER PLACEMENT LOGIC ---
-    // If Admin is approving, check for pending checkout in the TARGET user's data
-    if (status === 'approved') {
-      updateData.kycVerifiedDate = new Date().toISOString(); // Set verification date
+    if (status === 'approved' && targetUser.pendingCheckout?.items?.length) {
+      const no = targetUser.pendingCheckout;
+      const newOrder: Order = {
+        id: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
+        date: new Date().toISOString().split('T')[0],
+        userId: targetUser.id,
+        userName: targetUser.name,
+        userEmail: targetUser.email,
+        items: [...no.items],
+        total: no.total,
+        status: 'Placed',
+        address: no.address,
+        ...(no.rentalDetails ? { rentalStartDate: no.rentalDetails.start, rentalEndDate: no.rentalDetails.end, depositAmount: no.rentalDetails.deposit, deliveryMethod: no.rentalDetails.method } : {})
+      };
       try {
-
-        if (targetUser.pendingCheckout && targetUser.pendingCheckout.items && targetUser.pendingCheckout.items.length > 0) {
-          console.log("Found pending checkout for user. Auto-placing order...");
-
-          const no = targetUser.pendingCheckout;
-          const newOrder: Order = {
-            id: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
-            date: new Date().toISOString().split('T')[0],
-            userId: targetUser.id,
-            userName: targetUser.name,
-            userEmail: targetUser.email,
-            items: [...no.items],
-            total: no.total,
-            status: 'Placed',
-            address: no.address,
-            ...(no.rentalDetails ? {
-              rentalStartDate: no.rentalDetails.start,
-              rentalEndDate: no.rentalDetails.end,
-              depositAmount: no.rentalDetails.deposit,
-              deliveryMethod: no.rentalDetails.method
-            } : {})
-          };
-
-          // Generate Invoice Automatically
-          try {
-            console.log("📄 Generating automatic invoice for KYC order...");
-            const invoiceUrl = await createAndUploadInvoice(newOrder, targetUser);
-            newOrder.invoiceUrl = invoiceUrl;
-            console.log("✅ Invoice generated:", invoiceUrl);
-          } catch (invoiceErr) {
-            console.error("⚠️ Failed to generate automatic invoice:", invoiceErr);
-          }
-
-          updateData.orders = [...(targetUser.orders || []), newOrder];
-          updateData.cart = []; // Clear cart
-          updateData.pendingCheckout = null; // Clear pending checkout
-
-          console.log("Order auto-placed:", newOrder.id);
-
-          // CRITICAL FIX: Save to Firestore BEFORE returning!
-          try {
-            await updateDoc(userDocRef, updateData);
-            console.log("✅ KYC Status & Order updated in Firestore for user:", userId);
-
-            // Also update local state optimistically here because we are returning early
-            setAllUsers(prev => prev.map(u => {
-              if (u.id === userId) {
-                return {
-                  ...u,
-                  ...updateData
-                };
-              }
-              return u;
-            }));
-
-          } catch (err) {
-            console.error("Error saving auto-placed order updates:", err);
-            throw err;
-          }
-
-          return `Order ID: ${newOrder.id} has been placed successfully.`;
-        }
-      } catch (err) {
-        console.error("Error auto-placing order during KYC approval:", err);
-      }
+        const invoiceUrl = await createAndUploadInvoice(newOrder, targetUser);
+        newOrder.invoiceUrl = invoiceUrl;
+      } catch (e) { console.error(e); }
+      updateData.orders = [...(targetUser.orders || []), newOrder];
+      updateData.cart = [];
+      updateData.pendingCheckout = null;
     }
 
-    // --- OPTIMISTIC UI UPDATE ---
-    // Update local state immediately to reflect changes in UI
-    setAllUsers(prev => prev.map(u => {
-      if (u.id === userId) {
-        return {
-          ...u,
-          kycStatus: status,
-          kycDocuments: documents || u.kycDocuments,
-          kycVerifiedDate: updateData.kycVerifiedDate, // Ensure this field updates if it's set
-          kycVerifiedBy: updateData.kycVerifiedBy,
-          kycRejectionReason: updateData.kycRejectionReason,
-          kycHistory: updateData.kycHistory,
-          // If approved, clear checkout pending state locally too if we processed it
-          pendingCheckout: status === 'approved' && updateData.pendingCheckout === null ? null : u.pendingCheckout,
-          orders: status === 'approved' && updateData.orders ? updateData.orders : u.orders,
-          cart: status === 'approved' && updateData.cart ? updateData.cart : u.cart
-        };
-      }
-      return u;
-    }));
+    setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updateData } : u));
+    if (user && user.id === userId) setUser(prev => prev ? { ...prev, ...updateData } : null);
+    await updateDoc(userDocRef, updateData);
+  }, [user, allUsers]);
 
-    // Optimistic update for current user if applicable (only if admin is updating their own KYC, unlikely but possible)
-    if (user && user.id === userId) {
-      setUser(prev => prev ? {
-        ...prev,
-        ...updateData
-      } : null);
-    }
+  const toggleWishlist = useCallback(async (productId: string) => {
+    if (!user) { setIsAuthOpen(true); return; }
+    const updatedWishlist = wishlist.includes(productId)
+      ? wishlist.filter(id => id !== productId)
+      : [...wishlist, productId];
+    await syncUserField('wishlist', updatedWishlist);
+  }, [user, wishlist, syncUserField, setIsAuthOpen]);
 
-    try {
-      await updateDoc(userDocRef, updateData);
-      console.log("✅ KYC Status updated in Firestore for user:", userId, "Status:", status);
-    } catch (error) {
-      console.error("❌ Failed to update KYC status:", error);
-      alert("Failed to update KYC status. Please try again.");
-      // Revert optimistic update (optional, but good practice if critical)
-      // For now, simpler to just alert and maybe refresh
-      refreshProfile();
-      // Also maybe trigger a re-fetch of allUsers if we had a way to force it easily without full teardown
-    }
-  };
-
-  const savePendingCheckout = async (details: User['pendingCheckout']) => {
-    if (!user) return;
-    const userDocRef = doc(db, 'users', user.id);
-    await updateDoc(userDocRef, { pendingCheckout: details });
-    setUser(prev => prev ? { ...prev, pendingCheckout: details } : null);
-  };
-
-  const updateRentalPreferences = async (prefs: User['rentalPreferences']) => {
-    if (!user) return;
-    const userDocRef = doc(db, 'users', user.id);
-    await updateDoc(userDocRef, { rentalPreferences: prefs });
-    setUser(prev => prev ? { ...prev, rentalPreferences: prefs } : null);
-  };
-
-  const updateProfile = async (details: Partial<User>) => {
-    if (!user) return;
-    try {
-      const userDocRef = doc(db, 'users', user.id);
-
-      // Sanitize details to avoid undefined/null issues if necessary
-      const sanitizedDetails = JSON.parse(JSON.stringify(details));
-
-      await updateDoc(userDocRef, sanitizedDetails);
-
-      // Update local state
-      setUser(prev => prev ? { ...prev, ...details } : null);
-
-      // If name or avatar changed, update Firebase Auth profile too
-      if (details.name || details.avatar) {
-        await updateAuthProfile(auth.currentUser!, {
-          displayName: details.name || user.name,
-          photoURL: details.avatar || user.avatar
-        });
-      }
-
-      console.log("✅ Profile updated successfully");
-    } catch (err) {
-      console.error("❌ Error updating profile:", err);
-      throw err;
-    }
-  };
-
-  const updateEmailAddress = async (newEmail: string) => {
-    if (!auth.currentUser || !user) return;
-    try {
-      await updateEmail(auth.currentUser, newEmail);
-      const userDocRef = doc(db, 'users', user.id);
-      await updateDoc(userDocRef, { email: newEmail });
-      setUser(prev => prev ? { ...prev, email: newEmail } : null);
-      console.log("✅ Email updated successfully");
-    } catch (err) {
-      console.error("❌ Error updating email:", err);
-      throw err;
-    }
-  };
-
-  const dismissNotification = (id: string) => { setNotifications(prev => prev.filter(n => n.id !== id)); };
-
-  // --- VISIBILITY LAYER: SANITIZED VIEW ---
-  const visibleProducts = React.useMemo(() => {
+  const visibleProducts = useMemo(() => {
     if (user?.role === 'admin') return products;
-
-    // Sanitized View for non-admins: filter isPublic and strip sensitive fields
     return products
       .filter(p => p.isPublic && p.status !== 'OUT_OF_STOCK')
       .map(p => {
@@ -1371,26 +1064,26 @@ export function StoreProvider({ children }: { children?: ReactNode }) {
       });
   }, [products, user?.role]);
 
-  // --- VALIDATION SCRIPT (As requested in Master Fix) ---
   useEffect(() => {
     if (isProductsReady) {
       console.log(`[Verification] User Role: ${user?.role || 'Guest'}`);
       console.log(`[Verification] Full Inventory Count: ${products.length}`);
       console.log(`[Verification] Sanitized Catalog Count: ${visibleProducts.length}`);
-
       if (user?.role !== 'admin' && products.length > visibleProducts.length) {
         console.log(`[Verification] SUCCESS: Guest view is correctly filtered.`);
       }
     }
   }, [isProductsReady, products.length, visibleProducts.length, user?.role]);
 
+  const value = useMemo(() => ({
+    user, setUser, cart, orders, tickets, wishlist, allUsers, finance, products, visibleProducts, notifications, isCartOpen, isAuthOpen, isDBReady, isProductsReady,
+    login, loginWithGoogle, signup, logout, resetPassword, addProduct, updateProduct, deleteProduct, addToCart, updateQuantity, removeFromCart, placeOrder, addTicket, addTicketMessage, updateTicketPriority, assignTicket, toggleWishlist,
+    toggleCart: setIsCartOpen, toggleAuth: setIsAuthOpen, updateOrderStatus, updateTicketStatus, updateKYCStatus, updateUserStatus, dismissNotification,
+    addAddress, updateAddress, setDefaultAddress, removeAddress, updateRentalPreferences, savePendingCheckout, refreshProfile, updateProfile, updateEmailAddress
+  }), [user, cart, orders, tickets, wishlist, allUsers, finance, products, visibleProducts, notifications, isCartOpen, isAuthOpen, isDBReady, isProductsReady, login, loginWithGoogle, signup, logout, resetPassword, addProduct, updateProduct, deleteProduct, addToCart, updateQuantity, removeFromCart, placeOrder, addTicket, addTicketMessage, updateTicketPriority, assignTicket, toggleWishlist, updateOrderStatus, updateTicketStatus, updateKYCStatus, updateUserStatus, dismissNotification, addAddress, updateAddress, setDefaultAddress, removeAddress, updateRentalPreferences, savePendingCheckout, refreshProfile, updateProfile, updateEmailAddress]);
+
   return (
-    <StoreContext.Provider value={{
-      user, setUser, cart, orders, tickets, wishlist, allUsers, finance, products, visibleProducts, notifications, isCartOpen, isAuthOpen, isDBReady, isProductsReady,
-      login, loginWithGoogle, signup, logout, resetPassword, addProduct, updateProduct, deleteProduct, addToCart, updateQuantity, removeFromCart, placeOrder, addTicket, addTicketMessage, updateTicketPriority, assignTicket, toggleWishlist,
-      toggleCart: setIsCartOpen, toggleAuth: setIsAuthOpen, updateOrderStatus, updateTicketStatus, updateKYCStatus, updateUserStatus, dismissNotification,
-      addAddress, updateAddress, setDefaultAddress, removeAddress, updateRentalPreferences, savePendingCheckout, refreshProfile, updateProfile, updateEmailAddress
-    }}>
+    <StoreContext.Provider value={value}>
       {children}
     </StoreContext.Provider>
   );

@@ -29,11 +29,11 @@ export default function Home({ onNavigate }: HomeProps) {
     }));
 
   const brands = [
-    { name: 'Apple', img: 'https://images.unsplash.com/photo-1510511459019-5dee9954889c?q=80&w=600&auto=format&fit=crop', slogan: 'Think Different' },
+    { name: 'Apple', img: '/brands/apple.jpg', slogan: 'Think Different' },
     { name: 'Dell', img: 'https://images.unsplash.com/photo-1593642702821-c8da6771f0c6?q=80&w=600&auto=format&fit=crop', slogan: 'Power Your Future' },
-    { name: 'Asus', img: 'https://images.unsplash.com/photo-1603481588273-2f908a9a7a1b?q=80&w=600&auto=format&fit=crop', slogan: 'In Search of Incredible' },
+    { name: 'Asus', img: '/brands/asus.jpg', slogan: 'In Search of Incredible' },
     { name: 'Lenovo', img: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=600&auto=format&fit=crop', slogan: 'Smarter Tech for All' },
-    { name: 'HP', img: 'https://sl.bing.net/bGuYwvvHPDU', slogan: 'Keep Reinventing' },
+    { name: 'HP', img: '/brands/hp.jpg', slogan: 'Keep Reinventing' },
     { name: 'Razer', img: 'https://images.unsplash.com/photo-1603481588273-2f908a9a7a1b?q=80&w=600&auto=format&fit=crop', slogan: 'For Gamers. By Gamers.' },
   ];
 

@@ -93,7 +93,7 @@ function AppContent() {
         onNavigate={navigate}
       />
 
-      <main className={`flex-1 relative ${(currentView === 'kyc' || (user?.role === 'admin' && currentView === 'dashboard')) ? 'pt-0' : 'pt-24'} pb-12`}>
+      <main className={`flex-1 relative ${(currentView === 'kyc' || (user?.role === 'admin' && currentView === 'dashboard')) ? 'pt-0 pb-0' : 'pt-24 pb-12'}`}>
         {currentView === 'home' && <Home onNavigate={navigate} />}
         {currentView === 'listing' && (
           <Listing
@@ -122,7 +122,7 @@ function AppContent() {
         {currentView === 'checkout' && (
           <Checkout
             onSuccess={(isRental) => {
-              if (isRental) {
+              if (isRental && user?.kycStatus !== 'approved') {
                 navigate('kyc');
               } else {
                 navigate('dashboard', { tab: 'orders' });
@@ -148,7 +148,7 @@ function AppContent() {
         {currentView === 'contact' && <div className="animate-in"><Contact /></div>}
       </main>
 
-      {currentView !== 'kyc' && <Footer onNavigate={navigate} />}
+      {currentView !== 'kyc' && !(user?.role === 'admin' && currentView === 'dashboard') && <Footer onNavigate={navigate} />}
 
       {/* Global WhatsApp Chatbot */}
       <WhatsAppChatbot />

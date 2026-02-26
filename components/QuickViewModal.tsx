@@ -43,12 +43,8 @@ export default function QuickViewModal({ product, onClose, onNavigateToProduct }
       setIsAdding(false);
       const code = err?.message;
       if (code === 'KYC_NOT_APPROVED' || code === 'KYC_EXPIRED' || code === 'KYC_LIMIT_REACHED') {
-        const msg = code === 'KYC_NOT_APPROVED' ? 'KYC required.' : code === 'KYC_EXPIRED' ? 'KYC Expired.' : 'Limit Reached.';
+        const msg = code === 'KYC_NOT_APPROVED' ? 'KYC required at checkout.' : code === 'KYC_EXPIRED' ? 'KYC Expired.' : 'Limit Reached.';
         setCartError(msg);
-        setTimeout(() => {
-          onClose();
-          window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } }));
-        }, 1500);
       } else if (code === 'MAX_RENTALS_REACHED') {
         setCartError('3 active rentals max.');
       } else {

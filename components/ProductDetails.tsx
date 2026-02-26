@@ -62,14 +62,11 @@ export default function ProductDetails({ productId, context, onBack }: ProductDe
     } catch (err: any) {
       const code = err?.message;
       if (code === 'KYC_NOT_APPROVED') {
-        setCartError('KYC verification required before renting. Please complete your identity verification.');
-        setTimeout(() => window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } })), 1500);
+        setCartError('KYC verification required before renting. You can complete this during checkout.');
       } else if (code === 'KYC_EXPIRED') {
-        setCartError('Your KYC has expired (valid for 3 months). Please submit a new KYC to continue renting.');
-        setTimeout(() => window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } })), 2000);
+        setCartError('Your KYC has expired. Please submit a new KYC during checkout to continue renting.');
       } else if (code === 'KYC_LIMIT_REACHED') {
-        setCartError('You have reached the limit of 3 products per KYC. Please submit a new KYC to rent more products.');
-        setTimeout(() => window.dispatchEvent(new CustomEvent('navigate', { detail: { view: 'kyc' } })), 2000);
+        setCartError('You have reached the limit of 3 products per KYC.');
       } else if (code === 'MAX_RENTALS_REACHED') {
         setCartError('You already have 3 active rentals. Return a device to rent another.');
       } else if (code === 'TENURE_EXCEEDED') {
