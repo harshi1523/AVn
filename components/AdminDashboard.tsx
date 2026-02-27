@@ -28,7 +28,7 @@ const Timeline = lazy(() => import("./Timeline"));
 const Team = lazy(() => import("./Team"));
 const Contact = lazy(() => import("./Contact"));
 
-// Navbar and Search for Customer Portal
+// Navbar and Search for Customer View
 import Navbar from "./Navbar";
 import SearchOverlay from "./SearchOverlay";
 
@@ -151,22 +151,24 @@ export default function AdminDashboard() {
         return <AdminSupport tickets={allTickets} setSelectedTicket={setSelectedTicket} />;
       case 'customerPortal':
         return (
-          <div className="relative pt-24 min-h-screen">
-            <div className="fixed top-0 left-0 lg:left-[320px] right-0 z-[65]">
+          <div className="relative min-h-screen -mt-6 lg:-mt-10 -mx-4 lg:-mx-10 overflow-x-hidden">
+            <div className="sticky top-0 z-[60]">
               <Navbar
                 onNavigate={onCustomerNavigate}
                 onOpenSearch={() => setIsSearchOpen(true)}
                 scrolled={scrolled}
                 currentView={customerView}
                 viewParams={customerParams}
+                nested={true}
               />
             </div>
             <SearchOverlay
               isOpen={isSearchOpen}
               onClose={() => setIsSearchOpen(false)}
               onNavigate={onCustomerNavigate}
+              nested={true}
             />
-            <div className="space-y-6">
+            <div className="p-4 lg:p-10 pt-6 space-y-6">
               {customerView !== 'home' && (
                 <button
                   onClick={() => onCustomerNavigate('home')}
@@ -176,7 +178,7 @@ export default function AdminDashboard() {
                   <span className="text-[10px] font-black uppercase tracking-widest">Back to Portal Home</span>
                 </button>
               )}
-              <div className="rounded-3xl overflow-hidden border border-white/5 bg-brand-page/20 backdrop-blur-md">
+              <div className="rounded-[2rem] overflow-hidden border border-white/5 bg-brand-page/20 backdrop-blur-md shadow-2xl">
                 {customerView === 'home' && <Home onNavigate={onCustomerNavigate} />}
                 {customerView === 'listing' && (
                   <Listing
@@ -258,7 +260,7 @@ export default function AdminDashboard() {
       )}
 
       <div className="flex h-full w-full relative">
-        <aside className={`fixed inset-y-0 left-0 z-[55] w-[280px] lg:w-[320px] h-screen transform transition-all duration-500 ease-in-out p-4 lg:p-6 flex flex-col overflow-hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <aside className={`fixed inset-y-0 left-0 z-[80] w-[280px] lg:w-[320px] h-screen transform transition-all duration-500 ease-in-out p-4 lg:p-6 flex flex-col overflow-hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           <div className="h-full glass-card rounded-[2.5rem] flex flex-col shadow-elevated border border-white/5 relative overflow-hidden bg-brand-page/40 backdrop-blur-2xl">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
             <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden absolute top-6 right-6 z-20 text-gray-400 hover:text-white transition-colors">
@@ -289,7 +291,7 @@ export default function AdminDashboard() {
                   { id: 'financials', icon: 'payments', label: 'Financials' },
                   { id: 'users', icon: 'group', label: 'Users & KYC' },
                   { id: 'support', icon: 'confirmation_number', label: 'Support' },
-                  { id: 'customerPortal', icon: 'visibility', label: 'Customer Portal' }
+                  { id: 'customerPortal', icon: 'visibility', label: 'Customer View' }
                 ].map(tab => (
                   <button
                     key={tab.id}

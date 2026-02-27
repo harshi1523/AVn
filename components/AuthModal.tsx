@@ -11,6 +11,18 @@ export default function AuthModal() {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
+  React.useEffect(() => {
+    if (!isAuthOpen) {
+      setEmail("");
+      setPassword("");
+      setName("");
+      setError(null);
+      setLoading(false);
+      setMode('login');
+      setShowPassword(false);
+    }
+  }, [isAuthOpen]);
+
   if (!isAuthOpen) return null;
 
   const validatePassword = (pwd: string) => {

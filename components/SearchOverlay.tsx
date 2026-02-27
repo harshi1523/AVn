@@ -5,9 +5,10 @@ interface SearchOverlayProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigate: (view: string, params?: any) => void;
+  nested?: boolean;
 }
 
-export default function SearchOverlay({ isOpen, onClose, onNavigate }: SearchOverlayProps) {
+export default function SearchOverlay({ isOpen, onClose, onNavigate, nested }: SearchOverlayProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -83,7 +84,7 @@ export default function SearchOverlay({ isOpen, onClose, onNavigate }: SearchOve
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[1000] flex flex-col items-center pt-[15vh] px-4 md:px-8 animate-in fade-in duration-300">
+    <div className={`fixed inset-0 ${nested ? 'lg:left-[320px]' : ''} z-[1000] flex flex-col items-center pt-[15vh] px-4 md:px-8 animate-in fade-in duration-300`}>
       {/* Background with deep blur */}
       <div
         className="absolute inset-0 bg-black/80 backdrop-blur-3xl"
